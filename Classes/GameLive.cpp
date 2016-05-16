@@ -519,15 +519,16 @@ void GameLive::keySet() {
 }
 
 const string GameLive::KEY_LOOP_NAME = "keyloop";
-void GameLive::judgeSch(float dt) {
-	if (_close)
-		cocos2d::Director::getInstance()->getScheduler()->unschedule(KEY_LOOP_NAME, this);
-	else
-		this->judge();
-}
 
 void GameLive::keyLoop() {
-	cocos2d::Director::getInstance()->getScheduler()->schedule(std::bind(&GameLive::judgeSch, this), this, _loopfreq, false, KEY_LOOP_NAME);
+	auto judgeSch = [](GameLive* ptr, float dt) {
+		if (ptr->_close)
+			cocos2d::Director::getInstance()->getScheduler()->unschedule(KEY_LOOP_NAME, ptr);
+		else
+			ptr->judge();
+	};
+	GameLive* tmp = this;
+	cocos2d::Director::getInstance()->getScheduler()->schedule(std::bind(&judgeSch, tmp), tmp, _loopfreq, false, KEY_LOOP_NAME);
 }
 
 void GameLive::enter() {
@@ -558,7 +559,7 @@ void GameLive::api_UIStart(UIPtr uip) {
 	else if (uip->type() == GameUI::down) {
 		this->_UIDown.push_back(glu);
 	}
-	glu->id = glu->ui().start(); // 所以就这样子直接调用了？不知道。
+	glu->id() = glu->ui().start(); // 所以就这样子直接调用了？不知道。
 }
 
 void GameLive::api_eventStart(EventPtr eve, LiveObjPtr obj) {
@@ -591,7 +592,7 @@ step_one:
 			}
 			else if (jud == judgePreviousObject) {
 				i += 2;
-				if (i >= _UIUp.size())
+				if (i >= (int)_UIUp.size())
 					i -= 2; // 超出的话视作NextObject处理
 			}
 			else if (jud == judgeResetLayer || jud == judgeResetAll) {
@@ -624,7 +625,7 @@ step_three:
 			}
 			else if (jud == judgePreviousObject) {
 				i += 2;
-				if (i >= _UIDown.size())
+				if (i >= (int)_UIDown.size())
 					i -= 2; // 超出的话视作NextObject处理
 			}
 			else if (jud == judgeResetLayer) {

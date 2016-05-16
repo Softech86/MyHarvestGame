@@ -263,33 +263,6 @@ public:
 	virtual GameJudgeResult link(GameBasicCommand gcmd, EventPtr& out_event);
 };
 
-class GameTranslator {
-private:
-	GameBasicCommand oriTranslate(bool*);
-	std::function<GameBasicCommand(bool*)> convert = oriTranslate; // 利用匿名函数吗
-public:
-	GameTranslator() {}
-	virtual GameBasicCommand translate(bool* arrOfKeys);
-};
-
-class GameLinker {
-private:
-	LinkerSecond oriLink(GameBasicCommand);
-	std::function<LinkerSecond(GameBasicCommand)> convert = oriLink;
-public:
-	GameLinker() {}
-	virtual LinkerSecond link(GameBasicCommand);
-};
-
-class GameEvent {
-private:
-	// TODO
-public:
-	GameEvent() {}
-
-	virtual bool start(LiveObjPtr obj);
-};
-
 enum GameKeyPress {
 	buttonUp,
 	buttonDown,
@@ -333,6 +306,31 @@ enum GameBasicCommand {
 	selectRight,
 	confirm,
 	cancel,
+};
+
+class GameTranslator {
+private:
+	std::function<GameBasicCommand(bool*)> convert = [](bool* key) { return GameBasicCommand::emptyCmd; }; // 利用匿名函数吗
+public:
+	GameTranslator() { }
+	virtual GameBasicCommand translate(bool* arrOfKeys);
+};
+
+class GameLinker {
+private:
+	std::function<LinkerSecond(GameBasicCommand)> convert = [](GameBasicCommand gcmd) { return LinkerSecond(); };
+public:
+	GameLinker() { }
+	virtual LinkerSecond link(GameBasicCommand);
+};
+
+class GameEvent {
+private:
+	// TODO
+public:
+	GameEvent() {}
+
+	virtual bool start(LiveObjPtr obj);
 };
 
 class GameBase {

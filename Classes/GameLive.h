@@ -165,7 +165,6 @@ public:
 	void save();
 	void keyLoop();
 	void judge();
-	void judgeSch(float dt);
 	bool* keys() { return this->_keys; }
 
 	void api_UIStart(CodeType uicode);

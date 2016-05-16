@@ -98,16 +98,8 @@ bool GameEvent::start(LiveObjPtr obj) {
 	return true;
 }
 
-LinkerSecond GameLinker::oriLink(GameBasicCommand gcmd) {
-	return LinkerSecond();
-}
-
 LinkerSecond GameLinker::link(GameBasicCommand gcmd) {
 	return convert(gcmd);
-}
-
-GameBasicCommand GameTranslator::oriTranslate(bool* arrOfKeys) {
-	return GameBasicCommand::emptyCmd;
 }
 
 GameBasicCommand GameTranslator::translate(bool* arrOfKeys) {
