@@ -82,19 +82,19 @@ void GameLiveScene::blockRemove(const LiveObjPtr ptr) {
 	}
 }
 
-// ÕâÀïÖ±½Ó¾ÍÐÞ¸Älive¶ÔÏóÁË
+// Ã•Ã¢Ã€Ã¯Ã–Â±Â½Ã“Â¾ÃÃÃžÂ¸Ã„liveÂ¶Ã”ÃÃ³ÃÃ‹
 void GameLiveScene::blockMove(LiveObjPtr oldptr, const BlockPos& vec) {
 	if (oldptr == nullptr)
 		return;
-	// ÏÖÔÚÕâ¶«Î÷ºÜ±©Á¦£¬Ö®ºóÒ»¶¨ÐèÒªÓÅ»¯
-	// µ«ÊÇÈç¹ûÄãÏë±£ÁôÎïÆ·ÔÚÒÆ¶¯Ö®ºóµÄÎïÆ·Î»ÖÃÊ¼ÖÕÊÇ×îÉÏÃæµÄ»°ÄãÊÇÔÚÕâÀï²»¿ÉÒÔÓÅ»¯µÄ°¡
-	// àÅ¾ÍÊÇÕâÑù¡£
+	// ÃÃ–Ã”ÃšÃ•Ã¢Â¶Â«ÃŽÃ·ÂºÃœÂ±Â©ÃÂ¦Â£Â¬Ã–Â®ÂºÃ³Ã’Â»Â¶Â¨ÃÃ¨Ã’ÂªÃ“Ã…Â»Â¯
+	// ÂµÂ«ÃŠÃ‡ÃˆÃ§Â¹Ã»Ã„Ã£ÃÃ«Â±Â£ÃÃ´ÃŽÃ¯Ã†Â·Ã”ÃšÃ’Ã†Â¶Â¯Ã–Â®ÂºÃ³ÂµÃ„ÃŽÃ¯Ã†Â·ÃŽÂ»Ã–ÃƒÃŠÂ¼Ã–Ã•ÃŠÃ‡Ã—Ã®Ã‰ÃÃƒÃ¦ÂµÃ„Â»Â°Ã„Ã£ÃŠÃ‡Ã”ÃšÃ•Ã¢Ã€Ã¯Â²Â»Â¿Ã‰Ã’Ã”Ã“Ã…Â»Â¯ÂµÃ„Â°Â¡
+	// Ã Ã…Â¾ÃÃŠÃ‡Ã•Ã¢Ã‘Ã¹Â¡Â£
 	blockRemove(oldptr);
 	oldptr->margin() += vec;
 	blockAdd(oldptr);
 }
 
-// ÕâÀïÖ±½Ó¾ÍÐÞ¸Älive¶ÔÏóÁË
+// Ã•Ã¢Ã€Ã¯Ã–Â±Â½Ã“Â¾ÃÃÃžÂ¸Ã„liveÂ¶Ã”ÃÃ³ÃÃ‹
 void GameLiveScene::blockReplace(LiveObjPtr oldptr, ObjPtr newobj) {
 	if (newobj == nullptr)
 		return;
@@ -122,7 +122,7 @@ void GameLiveScene::removeBind(LiveObjPtr outptr, LiveObjPtr inptr) {
 		}
 		else if (tmp == inptr) {
 			i = outptr->outBind().erase(i);
-			break; // Ïëµ½break¾Í¾õµÃ»áÓÐ°ó¶¨ºÃ¼¸±éµÄÆæ¹ÖµÄbug·¢Éú
+			break; // ÃÃ«ÂµÂ½breakÂ¾ÃÂ¾ÃµÂµÃƒÂ»Ã¡Ã“ÃÂ°Ã³Â¶Â¨ÂºÃƒÂ¼Â¸Â±Ã©ÂµÃ„Ã†Ã¦Â¹Ã–ÂµÃ„bugÂ·Â¢Ã‰Ãº
 		}
 		else {
 			i++;
@@ -202,7 +202,7 @@ void GameLiveScene::mapAdd(LiveObjPtr ptr, bool recursive) {
 		blockAdd(ptr);
 		if (recursive) {
 			for (LiveObjWeak &child : ptr->outBind()) {
-				// ÕâÀï²»ÓÃÐ£ÑénullÁË£¬µ÷ÓÃµÄÊ±ºò»á´¦ÀíµÄ
+				// Ã•Ã¢Ã€Ã¯Â²Â»Ã“ÃƒÃÂ£Ã‘Ã©nullÃÃ‹Â£Â¬ÂµÃ·Ã“ÃƒÂµÃ„ÃŠÂ±ÂºÃ²Â»Ã¡Â´Â¦Ã€Ã­ÂµÃ„
 				mapAdd(child.lock(), true);
 			}
 		}
@@ -241,7 +241,7 @@ void GameLiveScene::mapRemoveOutBind(LiveObjPtr ptr, bool recursive) {
 	}
 }
 
-// ÕâÀïÖ±½Ó¾ÍÐÞ¸Älive¶ÔÏóÁË
+// Ã•Ã¢Ã€Ã¯Ã–Â±Â½Ã“Â¾ÃÃÃžÂ¸Ã„liveÂ¶Ã”ÃÃ³ÃÃ‹
 void GameLiveScene::mapMove(LiveObjPtr ptr, const BlockPos& vec, bool recursive) {
 	if (ptr == nullptr)
 		return;
@@ -255,7 +255,7 @@ void GameLiveScene::mapMove(LiveObjPtr ptr, const BlockPos& vec, bool recursive)
 	}
 }
 
-// ÕâÀïÖ±½Ó¾ÍÐÞ¸Älive¶ÔÏóÁË
+// Ã•Ã¢Ã€Ã¯Ã–Â±Â½Ã“Â¾ÃÃÃžÂ¸Ã„liveÂ¶Ã”ÃÃ³ÃÃ‹
 void GameLiveScene::mapReplace(LiveObjPtr oldptr, ObjPtr newptr) {
 	blockReplace(oldptr, newptr);
 }
@@ -427,7 +427,7 @@ Walkable GameLiveScene::detect(LiveObjPtr newptr, const BlockPos::Direction& dir
 				else {
 				}
 			}
-			// ÕâÍæÒâºÃ¸´ÔÓ°¡£¬ºÜ¸´ÔÓµÄ´úÂë¾ÍËãÄã´ò´íÁËÄãÒ²²»ÖªµÀ£¬Õâ²ÅÊÇ×îÏÅÈËµÄ¡£
+			// Ã•Ã¢ÃÃ¦Ã’Ã¢ÂºÃƒÂ¸Â´Ã”Ã“Â°Â¡Â£Â¬ÂºÃœÂ¸Â´Ã”Ã“ÂµÃ„Â´ÃºÃ‚Ã«Â¾ÃÃ‹Ã£Ã„Ã£Â´Ã²Â´Ã­ÃÃ‹Ã„Ã£Ã’Â²Â²Â»Ã–ÂªÂµÃ€Â£Â¬Ã•Ã¢Â²Ã…ÃŠÃ‡Ã—Ã®ÃÃ…ÃˆÃ‹ÂµÃ„Â¡Â£
 		}
 		if (twobreaks)
 			break;
@@ -528,6 +528,7 @@ void GameLive::keyLoop() {
 			ptr->judge();
 	};
 	GameLive* tmp = this;
+	// TMDæˆ‘è¿˜æ˜¯ä¸çŸ¥é“è¿™å¥è¯æ€Žä¹ˆå†™
 	cocos2d::Director::getInstance()->getScheduler()->schedule(std::bind(&judgeSch, tmp), tmp, _loopfreq, false, KEY_LOOP_NAME);
 }
 
@@ -559,14 +560,14 @@ void GameLive::api_UIStart(UIPtr uip) {
 	else if (uip->type() == GameUI::down) {
 		this->_UIDown.push_back(glu);
 	}
-	glu->id() = glu->ui().start(); // ËùÒÔ¾ÍÕâÑù×ÓÖ±½Óµ÷ÓÃÁË£¿²»ÖªµÀ¡£
+	glu->id() = glu->ui().start(); // Ã‹Ã¹Ã’Ã”Â¾ÃÃ•Ã¢Ã‘Ã¹Ã—Ã“Ã–Â±Â½Ã“ÂµÃ·Ã“ÃƒÃÃ‹Â£Â¿Â²Â»Ã–ÂªÂµÃ€Â¡Â£
 }
 
 void GameLive::api_eventStart(EventPtr eve, LiveObjPtr obj) {
 	if (eve == nullptr)
 		return;
 	else {
-		eve->start(obj); // ËùÒÔ¾ÍÕâÑù×ÓÖ±½Óµ÷ÓÃÁË£¿²»ÖªµÀ¡£
+		eve->start(obj); // Ã‹Ã¹Ã’Ã”Â¾ÃÃ•Ã¢Ã‘Ã¹Ã—Ã“Ã–Â±Â½Ã“ÂµÃ·Ã“ÃƒÃÃ‹Â£Â¿Â²Â»Ã–ÂªÂµÃ€Â¡Â£
 	}
 }
 
@@ -593,7 +594,7 @@ step_one:
 			else if (jud == judgePreviousObject) {
 				i += 2;
 				if (i >= (int)_UIUp.size())
-					i -= 2; // ³¬³öµÄ»°ÊÓ×÷NextObject´¦Àí
+					i -= 2; // Â³Â¬Â³Ã¶ÂµÃ„Â»Â°ÃŠÃ“Ã—Ã·NextObjectÂ´Â¦Ã€Ã­
 			}
 			else if (jud == judgeResetLayer || jud == judgeResetAll) {
 				goto step_one;
@@ -626,7 +627,7 @@ step_three:
 			else if (jud == judgePreviousObject) {
 				i += 2;
 				if (i >= (int)_UIDown.size())
-					i -= 2; // ³¬³öµÄ»°ÊÓ×÷NextObject´¦Àí
+					i -= 2; // Â³Â¬Â³Ã¶ÂµÃ„Â»Â°ÃŠÃ“Ã—Ã·NextObjectÂ´Â¦Ã€Ã­
 			}
 			else if (jud == judgeResetLayer) {
 				goto step_three;
