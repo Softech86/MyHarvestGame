@@ -2,6 +2,7 @@
 #include "HelloWorldScene.h"
 #include "GamePrincipal.h"
 #include "GameBase.h"
+#include "GamePaint.h"
 
 USING_NS_CC;
 
@@ -41,14 +42,17 @@ bool AppDelegate::applicationDidFinishLaunching() {
     // set FPS. the default value is 1.0/60 if you don't call this
     director->setAnimationInterval(1.0f / 60);
 
-    FileUtils::getInstance()->addSearchPath("res");
+    //FileUtils::getInstance()->addSearchPath("res");
 
-    // create a scene. it's an autorelease object
+    // YOU NEED TO MAKE A EMPTY SCENE HERE
     auto scene = HelloWorld::createScene();
-	
+	GamePaint::mainsc = scene;
+
 	GamePrincipal::init();
 	GamePrincipal::getBase().init();
     // run
+	
+
     director->runWithScene(scene);
 
     return true;

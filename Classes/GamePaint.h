@@ -3,6 +3,8 @@
 
 class GamePaint {
 public:
+	static cocos2d::Scene* mainsc;
+public:
     
     LiveCode nodeNew();
     bool nodeDisplay(LiveCode scene);
@@ -14,7 +16,4 @@ public:
     LiveCode objAlpha(LiveCode object, float oldalpha, float newalpha, float timeSec);
     void objErase(LiveCode object);
     
-    
-private:
-
 };

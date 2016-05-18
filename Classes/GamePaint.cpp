@@ -1,17 +1,23 @@
 #include "GamePaint.h"
 
+cocos2d::Scene* GamePaint::mainsc = nullptr;
 LiveCode GamePaint::nodeNew() {
     //TODO
-    return nullptr;
+	auto background = cocos2d::Sprite::create("tollgateBG.jpg");
+	if (!background)
+		return nullptr;
+	return background;
 }
 
-bool GamePaint::nodeDisplay(LiveCode scene) {
+bool GamePaint::nodeDisplay(LiveCode needDisplayed) {
     //TODO
-    return false;
+	GamePaint::mainsc->addChild(needDisplayed);
+
+    return true;
 }
 
-void GamePaint::nodeClear(LiveCode scene) {
-    //TODO
+void GamePaint::nodeClear(LiveCode needRemoved) {
+	GamePaint::mainsc->removeChild(needRemoved);
 }
 
 LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const PxPos& pos, float scale, float alpha) {
