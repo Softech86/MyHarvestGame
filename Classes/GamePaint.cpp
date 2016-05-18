@@ -14,14 +14,16 @@ void GamePaint::init() {
 
 LiveCode GamePaint::nodeNew() {
     //TODO
-	// auto background = cocos2d::Sprite::create("tollgateBG.jpg");
+	//auto background = cocos2d::Sprite::create("tollgateBG.jpg");
 	auto background = cocos2d::Node::create();
+	//background->setAnchorPoint(cocos2d::Vec2(0, 0));
 	if (!background)
 		return nullptr;
 	return background;
 }
 
 bool GamePaint::nodeDisplay(LiveCode needDisplayed) {
+	//展示参数中的节点，直接挂到主场景下面
 	GamePaint::mainsc->addChild(needDisplayed);
 	// Set the node position here
     return true;

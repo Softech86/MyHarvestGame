@@ -318,9 +318,9 @@ LiveObjPtr GameLiveScene::make(ObjPtr obj, GameLiveObject::StickTo stick, const 
 void GameLiveScene::init(const BlockPos& mazeSize) {
     auto pai = GamePrincipal::getPaint();
     
-    this->root = pai.nodeNew();
-    this->surrounding = pai.objAddToObj(this->root, "", PxPos::zero);
-    this->kid = pai.objAddToObj(this->root, "", PxPos::zero);
+    this->root = pai.nodeNew(); //为场景新生成一个Node，并作为根结点
+    this->surrounding = pai.objAddToObj(this->root, "", PxPos::zero);//为根节点绑定surrounding 即所属所有物品 并显示
+    this->kid = pai.objAddToObj(this->root, "", PxPos::zero);//为根节点绑定kid 即所有人物 并显示
     
     this->mazeSize = mazeSize;
     this->blockMap = new LiveDot[mazeSize.x * mazeSize.y];
