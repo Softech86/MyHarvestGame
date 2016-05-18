@@ -3,20 +3,45 @@
 
 GameUI GameUI::origin;
 
-UIPtr GameUI::create(CodeType code, const string& name, TransPtr control, const BlockPos& pos, vector<UIPtr>* container, const string& pic) {
-	UIPtr pt(new GameUI(code, name, control, pos, pic));
-	if (container != nullptr){
-		if ((int)container->size() <= code)
-			container->resize(code + 1);
-		(*container)[code] = pt;
-	}
-	return pt;
+LiveCode GameUI::start() {
+    return nullptr;
 }
 
-LiveCodeType GameUI::start() {
-	return nullptr;
+#if defined(LINUX) || defined(__APPLE__) || defined(APPLE)
+JudgeReturn GameUI::action(__attribute__((unused)) bool* keyarray) {
+#endif
+#ifdef WIN32
+JudgeReturn GameUI::action(bool* keyarray) {
+	UNREFERENCED_PARAMETER(keyarray);
+#endif
+    return JudgeReturn::judgeEnd;
 }
 
-GameJudgeResult GameUI::action(bool* keyarray) {
-	return GameJudgeResult::judgeEnd;
+string GameUI::save() {
+    return "test";
+}
+
+void GameUI::stop() {
+    
+}
+
+LiveCode StartPageUI::start() {
+    LiveCode result = nullptr; 
+    // TODO
+    // add some code here
+    // and assign result to the root node pointer of your paintings
+    return result;
+}
+
+JudgeReturn StartPageUI::action(bool* keyarray) {
+    GameCommand gcmd = this->control()->translate(keyarray);
+    // TODO some code
+    return JudgeReturn::judgeEnd;
+}
+
+GameCommand BasicMenuTranslator::translate(bool* keyarray) {
+    if(keyarray[GameKeyPress::buttonStart]) {
+        //TODO
+    }
+    return GameCommand::emptyCmd;
 }
