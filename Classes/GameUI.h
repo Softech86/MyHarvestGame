@@ -14,7 +14,7 @@ public:
 
 private:
     UIType _type = up;
-    CodeType _code = -1;
+    BaseCode _code = -1;
     string _name;
     TransPtr _translator = nullptr;
 
@@ -23,7 +23,7 @@ public:
     GameUI() {
     }
 
-    GameUI(CodeType code,
+    GameUI(BaseCode code,
             const string& name,
             TransPtr translator) :
     _code(code),
@@ -32,7 +32,7 @@ public:
     }
     
     template<class UIClass> 
-    static UIPtr create(CodeType code, const string& name, TransPtr translator, vector<UIPtr> *container = nullptr) {
+    static UIPtr create(BaseCode code, const string& name, TransPtr translator, vector<UIPtr> *container = nullptr) {
         UIPtr pt(new UIClass());
         pt->_code = code;
         pt->_name = name;
@@ -41,7 +41,7 @@ public:
         return pt;
     }
     template<class UIClass> 
-    static UIPtr create(CodeType code, const string& name, CodeType translator, vector<UIPtr> *container = nullptr) {
+    static UIPtr create(BaseCode code, const string& name, BaseCode translator, vector<UIPtr> *container = nullptr) {
         return create<UIClass>(code, name, GamePrincipal::getBase().getTranslator(translator), container);
     }
 
@@ -54,7 +54,7 @@ public:
         return this->_type;
     }
 
-    CodeType& code() {
+    BaseCode& code() {
         return this->_code;
     }
 

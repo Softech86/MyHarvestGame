@@ -99,7 +99,7 @@ enum UICode {
 typedef int BlockType;
 typedef float PxType;
 typedef float NumType;
-typedef int CodeType;
+typedef int BaseCode;
 typedef cocos2d::Node* LiveCode;
 
 class GameLive;

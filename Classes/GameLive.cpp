@@ -31,6 +31,7 @@ LiveCode GameLiveObject::paint(LiveCode father) {
         result = GamePrincipal::getPaint().objAddToObj(father, this->picture(), pos);
     }
     this->obj().afterPaint(result);
+	this->paintCode() = result;
     return result;
 }
 
@@ -286,14 +287,12 @@ LiveObjPtr GameLiveScene::queryCode(LiveCode code) {
     }
 }
 
-LiveObjPtr GameLiveScene::make(CodeType ptr, GameLiveObject::StickTo stick, const BlockPos& margin, int z, float scale, float alpha) {
+LiveObjPtr GameLiveScene::make(BaseCode ptr, bool scene, GameLiveObject::StickTo stick, const BlockPos& margin, int z, float scale, float alpha) {
     ObjPtr temp;
-    if(stick == GameLiveObject::StickTo::surroundings)
+    if(scene)
         temp = GamePrincipal::getBase().getScene(ptr);
-    else if (stick == GameLiveObject::StickTo::kid)
-        temp = GamePrincipal::getBase().getStuff(ptr);
     else
-        return nullptr;
+        temp = GamePrincipal::getBase().getStuff(ptr);
     return GameLiveScene::make(temp, stick, margin, z, scale, alpha);
 }
 
@@ -303,10 +302,13 @@ LiveObjPtr GameLiveScene::make(ObjPtr obj, GameLiveObject::StickTo stick, const 
     pt->scale() = scale;
     pt->alpha() = alpha;
     pt->setStick(stick);
+
+	this->cacheAdd(pt);
+
     // don't forget to create bind
     if(obj->type() == GameObject::BigType::combStuff) {
-        for(auto childptr : obj->children()) {
-            LiveObjPtr livechild = make(childptr.lock(), stick, BlockPos::zero);
+        for(int index = 0; index < (int)obj->children().size(); index++) {
+            LiveObjPtr livechild = make(obj->children()[index].lock(), stick, obj->childrenPos()[index]);
             addBind(pt, livechild);
         }
     }
@@ -315,21 +317,36 @@ LiveObjPtr GameLiveScene::make(ObjPtr obj, GameLiveObject::StickTo stick, const 
 
 void GameLiveScene::init(const BlockPos& mazeSize) {
     auto pai = GamePrincipal::getPaint();
-    this->sceneCode = pai.nodeNew();
     
-    this->root = pai.objAddToObj(this->sceneCode, "", PxPos::zero);
+    this->root = pai.nodeNew();
     this->surrounding = pai.objAddToObj(this->root, "", PxPos::zero);
     this->kid = pai.objAddToObj(this->root, "", PxPos::zero);
     
     this->mazeSize = mazeSize;
     this->blockMap = new LiveDot[mazeSize.x * mazeSize.y];
-    
-    
+}
+
+void GameLiveScene::setScene(BaseCode scene) {
+	this->scene = GamePrincipal::getBase().getScene(scene);
+	this->add(this->scene, GameLiveObject::StickTo::surroundings, BlockPos::zero);
 }
 
 void GameLiveScene::add(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin) {
     LiveObjPtr live = make(obj, stick, margin);
     add(live);
+}
+
+void GameLiveScene::cacheAdd(LiveObjPtr live) {
+	this->toDebug.push_back(live);
+}
+
+void GameLiveScene::cacheRemove(LiveObjPtr live) {
+	for (auto lt = this->toDebug.begin(); lt != this->toDebug.end(); lt++) {
+		if (*lt == live) {
+			this->toDebug.erase(lt);
+			return;
+		}
+	}
 }
 
 void GameLiveScene::add(LiveObjPtr live) {
@@ -343,6 +360,9 @@ void GameLiveScene::add(LiveObjPtr live) {
         return;
     LiveCode code = live->paint(parent);
     dictAdd(code, live);
+	
+	this->cacheRemove(live);
+
     for(auto childptr : live->outBind()) {
         add(childptr.lock());
     }
@@ -357,7 +377,7 @@ void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
     } else {
         mapRemove(live, false);
     }
-    GamePrincipal::getPaint().objErase(live->paintCode());
+    GamePrincipal::getPaint().objRemove(live->paintCode());
     dictRemove(live->paintCode());
 }
 
@@ -373,8 +393,9 @@ void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move,
     }
 }
 
-void GameLiveScene::replace(LiveObjPtr oldptr, ObjPtr newptr, const BlockPos& margin) {
-    // TODO
+void GameLiveScene::replace(LiveObjPtr oldptr, ObjPtr newptr) {
+    mapReplace(oldptr, newptr);
+    // I guess there should be no problem
 }
 
 BlockPos GameLiveScene::getWindowRelativePosition(const BlockPos& pos) {
@@ -617,10 +638,11 @@ void GameLive::keyLoop() {
 }
 
 void GameLive::enter() {
-    api_UIStart(UICode::startPageCode);
+    this->api_sceneInit(farmSceneCode, BlockPos(100, 100));
+	this->api_sceneDisplay();
 }
 
-void GameLive::start() {
+void GameLive::init() {
     if (_keys == nullptr)
         _keys = new bool[KEY_COUNT];
     if (_keys == nullptr)
@@ -630,7 +652,7 @@ void GameLive::start() {
     this->keyLoop();
 }
 
-void GameLive::api_UIStart(CodeType uicode) {
+void GameLive::api_UIStart(BaseCode uicode) {
     UIPtr uip = GamePrincipal::getBase().getUI(uicode);
     api_UIStart(uip);
 }
@@ -653,6 +675,16 @@ void GameLive::api_eventStart(EventPtr eve, LiveObjPtr obj) {
     else {
         eve->start(obj); // 所以就这样子直接调用了？不知道。
     }
+}
+
+void GameLive::api_sceneInit(BaseCode sceneCode, BlockPos mazeSize) {
+	this->_scene = new GameLiveScene;
+	this->_scene->init(mazeSize);
+	this->_scene->setScene(sceneCode);
+}
+
+void GameLive::api_sceneDisplay() {
+	GamePrincipal::getPaint().nodeDisplay(this->_scene->rootCode());
 }
 
 void GameLive::judge() {

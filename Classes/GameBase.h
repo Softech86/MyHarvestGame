@@ -2,7 +2,7 @@
 #include "ClassHeader.h"
 
 template<class PtrType>
-void T_push(vector<PtrType>* container, PtrType pt, CodeType code) {
+void T_push(vector<PtrType>* container, PtrType pt, BaseCode code) {
     if (container != nullptr && code >= 0) {
         if ((int) container->size() <= code) {
             container->resize(code + 1);
@@ -12,7 +12,7 @@ void T_push(vector<PtrType>* container, PtrType pt, CodeType code) {
 }
 
 template<class childType, class parentPtr>
-parentPtr T_create(CodeType code, vector<parentPtr> *container) {
+parentPtr T_create(BaseCode code, vector<parentPtr> *container) {
     parentPtr pt(new childType());
     T_push(container, pt, code);
     return pt;
@@ -57,7 +57,7 @@ public:
 
     struct JumpData {
         GameAlpha jump;
-        CodeType sceneCode = -1;
+        BaseCode sceneCode = -1;
         BlockPos kidPos;
     };
 
@@ -65,7 +65,7 @@ public:
 
 private:
     BigType _type = BigType::empty;
-    CodeType _code = -1;
+    BaseCode _code = -1;
     std::string _name;
     std::string _description;
     BlockPos _size;
@@ -73,6 +73,7 @@ private:
     BlockPos _anchor;
     string _picture = "";
     vector<ObjWeak> _children;
+    vector<BlockPos> _childrenPos;
     WalkType _walktype = WalkType::noneWalk;
     GameAlpha _alphaWalkableBMP;
     vector<JumpData> _jumpInfo;
@@ -91,7 +92,7 @@ public:
 
     GameObject(
             BigType type,
-            CodeType code,
+            BaseCode code,
             const string& name,
             const string& description,
             const BlockPos& size,
@@ -112,7 +113,7 @@ public:
 
     static ObjPtr create(
             BigType type,
-            CodeType code,
+            BaseCode code,
             const string& name,
             const string& description,
             const BlockPos& size,
@@ -135,7 +136,7 @@ public:
         return this->_type;
     }
 
-    CodeType& code() {
+    BaseCode& code() {
         return this->_code;
     }
 
@@ -167,6 +168,10 @@ public:
         return this->_children;
     }
 
+    vector<BlockPos>& childrenPos() {
+        return this->_childrenPos;
+    }
+    
     WalkType& walktype() {
         return this->_walktype;
     }
@@ -220,9 +225,9 @@ public:
     : convert(method) {        
     }
     
-    static TransPtr create(CodeType code, std::function<GameCommand(bool*)> &method, vector<TransPtr> *container = nullptr);
+    static TransPtr create(BaseCode code, std::function<GameCommand(bool*)> &method, vector<TransPtr> *container = nullptr);
     template<class TranslatorType>
-    static TransPtr create(CodeType code, vector<TransPtr> *container = nullptr) {
+    static TransPtr create(BaseCode code, vector<TransPtr> *container = nullptr) {
         return T_create<TranslatorType>(code, container);
     }
     
@@ -245,9 +250,9 @@ public:
     : convert(method) {
     }
     
-    static LinkerPtr create(CodeType code, std::function<LinkerReturn(GameCommand)> &method, vector<LinkerPtr> *container = nullptr);
+    static LinkerPtr create(BaseCode code, std::function<LinkerReturn(GameCommand)> &method, vector<LinkerPtr> *container = nullptr);
     template<class LinkerType>
-    static LinkerPtr create(CodeType code, vector<LinkerPtr> *container = nullptr) {
+    static LinkerPtr create(BaseCode code, vector<LinkerPtr> *container = nullptr) {
         return T_create<LinkerType, LinkerPtr>(code, container);
     }
     
@@ -279,8 +284,8 @@ private:
     std::vector<UIPtr> UIData;
 public:
     void init();
-    ObjPtr getStuff(CodeType code);
-    ObjPtr getScene(CodeType code);
-    TransPtr getTranslator(CodeType code);
-    UIPtr getUI(CodeType code);
+    ObjPtr getStuff(BaseCode code);
+    ObjPtr getScene(BaseCode code);
+    TransPtr getTranslator(BaseCode code);
+    UIPtr getUI(BaseCode code);
 };

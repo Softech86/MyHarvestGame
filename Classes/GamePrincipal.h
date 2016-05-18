@@ -16,6 +16,7 @@ private:
     GameBase* gstd = nullptr;
 public:
     static GamePrincipal& init();
+    static void GAMEMAIN();
     static void clear();
 
     static GameCalculate& getCalculate() {

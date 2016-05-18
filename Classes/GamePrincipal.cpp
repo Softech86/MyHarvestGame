@@ -6,6 +6,13 @@
 
 GamePrincipal* GamePrincipal::inst = nullptr;
 
+void GamePrincipal::GAMEMAIN() {
+	GamePrincipal::init();
+	GamePrincipal::getBase().init();
+	GamePrincipal::getPaint().init();
+	GamePrincipal::getLive().init();
+}
+
 GamePrincipal& GamePrincipal::init() {
     if (GamePrincipal::inst == nullptr) {
         GamePrincipal::inst = new GamePrincipal;

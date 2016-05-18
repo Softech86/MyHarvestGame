@@ -15,7 +15,10 @@ void GameBase::init() {
     GameObject::create(GameObject::ground, soilWateredCode, "soilWatered", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilWatered.csb", soilComb);
 
     // Scene Create
-
+	ObjPtr farmsc = GameObject::create(GameObject::BigType::combStuff, farmSceneCode, "farmScene", "", BigBlockPos(20, 20), WalkType::allWalk, &sceneData, "");
+	farmsc->children().push_back(getStuff(soilHoedCode));
+	farmsc->childrenPos().push_back(BlockPos(3, 3));
+	
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
     
@@ -87,28 +90,28 @@ void GameObject::afterPaint(LiveCode obj) {
 #endif
 }
 
-ObjPtr GameBase::getStuff(CodeType code) {
+ObjPtr GameBase::getStuff(BaseCode code) {
     if (code >= 0 && code < (int) stuffData.size())
         return stuffData[code];
     else
         return nullptr;
 }
 
-ObjPtr GameBase::getScene(CodeType code) {
+ObjPtr GameBase::getScene(BaseCode code) {
     if (code >= 0 && code < (int) sceneData.size())
         return sceneData[code];
     else
         return nullptr;
 }
 
-TransPtr GameBase::getTranslator(CodeType code) {
+TransPtr GameBase::getTranslator(BaseCode code) {
     if (code >= 0 && code < (int) transData.size())
         return transData[code];
     else
         return nullptr;
 }
 
-UIPtr GameBase::getUI(CodeType code) {
+UIPtr GameBase::getUI(BaseCode code) {
     if (code >= 0 && code < (int) UIData.size())
         return UIData[code];
     else
@@ -119,13 +122,13 @@ bool GameEvent::start(LiveObjPtr obj) {
     return true;
 }
 
-TransPtr GameTranslator::create(CodeType code, std::function<GameCommand(bool*)> &method, vector<TransPtr> *container) {
+TransPtr GameTranslator::create(BaseCode code, std::function<GameCommand(bool*)> &method, vector<TransPtr> *container) {
     TransPtr pt(new GameTranslator(method));
     T_push(container, pt, code);
     return pt;
 }
 
-LinkerPtr GameLinker::create(CodeType code, std::function<LinkerReturn(GameCommand)> &method, vector<LinkerPtr> *container) {
+LinkerPtr GameLinker::create(BaseCode code, std::function<LinkerReturn(GameCommand)> &method, vector<LinkerPtr> *container) {
     LinkerPtr pt(new GameLinker(method));
     T_push(container, pt, code);
     return pt;
