@@ -42,6 +42,7 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 		node = cocos2d::Node::create();
 	else {
 		node = cocos2d::CSLoader::createNode(picture);
+		// bug seems to be here
 		if (!node)
 			return nullptr;
 		node->setPosition(pos.x, pos.y);
@@ -52,8 +53,7 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 	return node;
 }
 
-LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& newpos, MoveType type, float timeSec){
-	// TODO
+LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& newpos, MoveType type, float timeSec) {
 	if (timeSec == 0) {
 		object->setPosition(newpos.toVec2());
 	}
@@ -63,16 +63,30 @@ LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& n
 	return object;
 }
 
-LiveCode GamePaint::objRotate(LiveCode object, float olddegree, float newdegree, float timeSec){
-    //TODO
-    return nullptr;
+LiveCode GamePaint::objRotate(LiveCode object, float olddegree, float newdegree, float timeSec) {
+	if (timeSec == 0) {
+		object->setRotation(newdegree);
+	}
+	else
+		object->runAction(cocos2d::RotateTo::create(timeSec, newdegree));
+
+	return object;
 }
 
 LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, float timeSec) {
-    //TODO
-    return nullptr;
+	if (newalpha <= 1)
+		newalpha *= 255;
+
+	if (timeSec == 0) {
+		object->setOpacity(newalpha);
+	}
+	else
+		object->runAction(cocos2d::FadeTo::create(timeSec, newalpha));
+
+	return object;
 }
 
 void GamePaint::objRemove(LiveCode object) {
-    //TODO
+	//注意：对象仍然存在，只是不可描述了而已
+	object->setVisible(false);
 }
