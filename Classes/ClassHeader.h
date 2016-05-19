@@ -177,6 +177,10 @@ public:
         else
             return false;
     }
+
+	cocos2d::Vec2 toVec2() const {
+		return cocos2d::Vec2(x, y);
+	}
 };
 
 // 代表运算的基本单元，也就是小格子的类型

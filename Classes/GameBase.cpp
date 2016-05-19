@@ -17,7 +17,10 @@ void GameBase::init() {
     // Scene Create
 	ObjPtr farmsc = GameObject::create(GameObject::BigType::combStuff, farmSceneCode, "farmScene", "", BigBlockPos(20, 20), WalkType::allWalk, &sceneData, "");
 	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BlockPos(3, 3));
+	farmsc->childrenPos().push_back(BlockPos(0, 0));
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BlockPos(6, 3));
+	
 	
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);

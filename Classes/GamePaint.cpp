@@ -15,7 +15,6 @@ void GamePaint::init() {
 
 LiveCode GamePaint::nodeNew() {
     //TODO
-	// auto background = cocos2d::Sprite::create("tollgateBG.jpg");
 	auto background = cocos2d::Node::create();
 	if (!background)
 		return nullptr;
@@ -68,7 +67,14 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 
 LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& newpos, MoveType type, float timeSec){
     //TODO
-    return nullptr;
+
+	if (timeSec == 0) {
+		object->setPosition(newpos.toVec2());
+	}
+	else
+		object->runAction(cocos2d::MoveTo::create(timeSec, newpos.toVec2()));
+
+    return object;
 }
 
 LiveCode GamePaint::objRotate(LiveCode object, float olddegree, float newdegree, float timeSec){
