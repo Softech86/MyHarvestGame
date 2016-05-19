@@ -171,6 +171,8 @@ public:
 
 public:
     LiveCode rootCode() { return this->root; };
+	LiveCode surroundingCode() { return this->surrounding; }
+	LiveCode kidCode() { return this->kid; }
     
     // we get the code once it is painted, then we should add it into the dictionary
     LiveObjPtr queryCode(LiveCode code); 
@@ -220,7 +222,7 @@ public:
 private:
     vector<LiveUIPtr> _UIUp;
     vector<LiveUIPtr> _UIDown;
-    GameLiveScene* _scene;
+    GameLiveScene* _scene = nullptr;
     float _loopfreq = LOOP_FREQ_MS / 1000;
     bool _close = false;
     bool* _keys;

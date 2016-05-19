@@ -10,6 +10,8 @@ using std::vector;
 using std::string;
 using std::map;
 
+//#define DEBUG3
+
 enum MoveType { linear, };
 
 enum WalkType {

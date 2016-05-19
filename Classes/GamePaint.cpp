@@ -1,4 +1,5 @@
 #include "GamePaint.h"
+#include "GamePrincipal.h"
 #include "cocostudio/CocoStudio.h"
 
 using cocos2d::Node;
@@ -14,18 +15,29 @@ void GamePaint::init() {
 
 LiveCode GamePaint::nodeNew() {
     //TODO
-	//auto background = cocos2d::Sprite::create("tollgateBG.jpg");
+	// auto background = cocos2d::Sprite::create("tollgateBG.jpg");
 	auto background = cocos2d::Node::create();
-	//background->setAnchorPoint(cocos2d::Vec2(0, 0));
 	if (!background)
 		return nullptr;
 	return background;
 }
 
 bool GamePaint::nodeDisplay(LiveCode needDisplayed) {
-	//展示参数中的节点，直接挂到主场景下面
+#ifdef DEBUG2
+	auto pai = GamePrincipal::getPaint();
+
+	auto root = pai.nodeNew();
+	auto surrounding = pai.objAddToObj(root, "", PxPos::zero);
+	auto kid = pai.objAddToObj(root, "", PxPos::zero);
+	auto box = cocos2d::CSLoader::createNode("soilHoed.csb");
+	surrounding->addChild(box);
+	mainsc->addChild(root);
+#else
+	// needDisplayed->setPosition(100, 100);
 	GamePaint::mainsc->addChild(needDisplayed);
 	// Set the node position here
+	// DEBUG
+#endif
     return true;
 }
 
@@ -43,11 +55,12 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 		node = cocos2d::Node::create();
 	else {
 		node = cocos2d::CSLoader::createNode(picture);
+	// bug seems to be here
 		if (!node)
 			return nullptr;
 		node->setPosition(pos.x, pos.y);
 		node->setScale(scale);
-		node->setOpacity(alpha);
+		node->setOpacity(255 * alpha);
 	}
 	parent->addChild(node);
 	return node;

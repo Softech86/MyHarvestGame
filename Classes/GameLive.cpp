@@ -2,6 +2,7 @@
 #include "GameBase.h"
 #include "GamePrincipal.h"
 #include "cocos2d.h"
+#include "cocostudio\CocoStudio.h"
 #include "GamePaint.h"
 
 GameLiveObject::GameLiveObject(ObjPtr pobj) {
@@ -318,9 +319,14 @@ LiveObjPtr GameLiveScene::make(ObjPtr obj, GameLiveObject::StickTo stick, const 
 void GameLiveScene::init(const BlockPos& mazeSize) {
     auto pai = GamePrincipal::getPaint();
     
-    this->root = pai.nodeNew(); //为场景新生成一个Node，并作为根结点
-    this->surrounding = pai.objAddToObj(this->root, "", PxPos::zero);//为根节点绑定surrounding 即所属所有物品 并显示
-    this->kid = pai.objAddToObj(this->root, "", PxPos::zero);//为根节点绑定kid 即所有人物 并显示
+    this->root = pai.nodeNew();
+#ifdef DEBUG3
+	this->surrounding = pai.nodeNew();
+#else
+    this->surrounding = pai.objAddToObj(this->root, "", PxPos::zero);
+	
+#endif
+    this->kid = pai.objAddToObj(this->root, "", PxPos::zero);
     
     this->mazeSize = mazeSize;
     this->blockMap = new LiveDot[mazeSize.x * mazeSize.y];
@@ -352,13 +358,39 @@ void GameLiveScene::cacheRemove(LiveObjPtr live) {
 void GameLiveScene::add(LiveObjPtr live) {
     mapAdd(live, false);
     LiveCode parent;
-    if(live->getStick() == GameLiveObject::StickTo::surroundings)
-        parent = this->surrounding;
-    else if(live->getStick() == GameLiveObject::StickTo::kid)
-        parent = this->kid;
-    else
-        return;
-    LiveCode code = live->paint(parent);
+
+#ifdef DEBUG2
+	parent = this->root;
+#else
+#ifdef DEBUG3
+	if (live->getStick() == GameLiveObject::StickTo::surroundings)
+		parent = this->surrounding;
+	else if (live->getStick() == GameLiveObject::StickTo::kid)
+		parent = this->kid;
+	else
+		return;
+#else
+	if (live->getStick() == GameLiveObject::StickTo::surroundings)
+		parent = this->surrounding;
+	else if (live->getStick() == GameLiveObject::StickTo::kid)
+		parent = this->kid;
+	else
+		return;
+#endif
+#endif // DEBUG2
+
+
+#ifdef DEBUG4
+	LiveCode code;
+	if (live->picture() != "")
+		code = cocos2d::CSLoader::createNode(live->picture());
+	else
+		code = cocos2d::Node::create();
+	parent->addChild(code);
+#else
+	LiveCode code = live->paint(parent);
+#endif // DEBUG3
+
     dictAdd(code, live);
 	
 	this->cacheRemove(live);
@@ -678,13 +710,22 @@ void GameLive::api_eventStart(EventPtr eve, LiveObjPtr obj) {
 }
 
 void GameLive::api_sceneInit(BaseCode sceneCode, BlockPos mazeSize) {
-	this->_scene = new GameLiveScene;
+	this->_scene = new GameLiveScene();
 	this->_scene->init(mazeSize);
 	this->_scene->setScene(sceneCode);
 }
 
 void GameLive::api_sceneDisplay() {
+	// DEBUG edited
+#ifdef DEBUG2
 	GamePrincipal::getPaint().nodeDisplay(this->_scene->rootCode());
+#else
+#ifdef DEBUG3
+	GamePrincipal::getPaint().nodeDisplay(this->_scene->surroundingCode());
+#else
+	GamePrincipal::getPaint().nodeDisplay(this->_scene->rootCode());
+#endif
+#endif
 }
 
 void GameLive::judge() {
