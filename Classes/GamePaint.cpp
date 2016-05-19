@@ -15,6 +15,7 @@ void GamePaint::init() {
 
 LiveCode GamePaint::nodeNew() {
     //TODO
+	// auto background = cocos2d::Sprite::create("tollgateBG.jpg");
 	auto background = cocos2d::Node::create();
 	if (!background)
 		return nullptr;
@@ -22,21 +23,8 @@ LiveCode GamePaint::nodeNew() {
 }
 
 bool GamePaint::nodeDisplay(LiveCode needDisplayed) {
-#ifdef DEBUG2
-	auto pai = GamePrincipal::getPaint();
-
-	auto root = pai.nodeNew();
-	auto surrounding = pai.objAddToObj(root, "", PxPos::zero);
-	auto kid = pai.objAddToObj(root, "", PxPos::zero);
-	auto box = cocos2d::CSLoader::createNode("soilHoed.csb");
-	surrounding->addChild(box);
-	mainsc->addChild(root);
-#else
-	// needDisplayed->setPosition(100, 100);
+	needDisplayed->setPosition(100, 100);
 	GamePaint::mainsc->addChild(needDisplayed);
-	// Set the node position here
-	// DEBUG
-#endif
     return true;
 }
 
@@ -54,7 +42,6 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 		node = cocos2d::Node::create();
 	else {
 		node = cocos2d::CSLoader::createNode(picture);
-	// bug seems to be here
 		if (!node)
 			return nullptr;
 		node->setPosition(pos.x, pos.y);
@@ -66,15 +53,14 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 }
 
 LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& newpos, MoveType type, float timeSec){
-    //TODO
-
+	// TODO
 	if (timeSec == 0) {
 		object->setPosition(newpos.toVec2());
 	}
 	else
 		object->runAction(cocos2d::MoveTo::create(timeSec, newpos.toVec2()));
 
-    return object;
+	return object;
 }
 
 LiveCode GamePaint::objRotate(LiveCode object, float olddegree, float newdegree, float timeSec){

@@ -13,15 +13,15 @@ void GameBase::init() {
     GameObject::create(GameObject::ground, soilOriginCode, "soilOrigin", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilOrigin.csb", soilComb);
     GameObject::create(GameObject::ground, soilHoedCode, "soilHoed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilHoed.csb", soilComb);
     GameObject::create(GameObject::ground, soilWateredCode, "soilWatered", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilWatered.csb", soilComb);
+	GameObject::create(GameObject::BigType::kid, KidCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "Kid.csb");
 
     // Scene Create
 	ObjPtr farmsc = GameObject::create(GameObject::BigType::combStuff, farmSceneCode, "farmScene", "", BigBlockPos(20, 20), WalkType::allWalk, &sceneData, "");
 	farmsc->children().push_back(getStuff(soilHoedCode));
 	farmsc->childrenPos().push_back(BlockPos(0, 0));
 	//farmsc->children().push_back(getStuff(soilHoedCode));
-	//farmsc->childrenPos().push_back(BlockPos(6, 3));
-	
-	
+	//farmsc->childrenPos().push_back(BlockPos(6, 3));	
+
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
     

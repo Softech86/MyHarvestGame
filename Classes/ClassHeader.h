@@ -10,8 +10,6 @@ using std::vector;
 using std::string;
 using std::map;
 
-//#define DEBUG3
-
 enum MoveType { linear, };
 
 enum WalkType {
@@ -176,7 +174,7 @@ public:
             return true;
         else
             return false;
-    }
+	}
 
 	cocos2d::Vec2 toVec2() const {
 		return cocos2d::Vec2(x, y);

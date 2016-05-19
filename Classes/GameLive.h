@@ -138,7 +138,7 @@ private:
     LiveDot* blockMap = nullptr;
     TransPtr defaultTranslator = nullptr;
 
-    static const int detectSplit = 5;
+    static const int detectSplit = 2;
 
     // these four functions only moves one object in the blockMap
     void blockAdd(LiveObjPtr ptr);
