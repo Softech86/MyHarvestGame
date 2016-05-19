@@ -52,7 +52,7 @@ class GameObject {
 public:
 
     enum BigType {
-        empty, kid, npc, animal, plant, ground, stuff, combStuff, combStatue
+        empty, npc, animal, plant, ground, stuff, combStuff, combStatue
     };
 
     struct JumpData {
