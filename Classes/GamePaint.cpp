@@ -64,12 +64,38 @@ LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& n
 }
 
 LiveCode GamePaint::objRotate(LiveCode object, float olddegree, float newdegree, float timeSec) {
+	auto setArchorToCenter = [](LiveCode object) {
+		for (auto obj : object->getChildren()) 
+			for (auto o : obj->getChildren())
+				o->setAnchorPoint(cocos2d::Vec2(0.5f, 0.5f));
+	};
+	auto setArchorToZero = [](LiveCode object) {
+		cocos2d::log(("object_begin" + cocos2d::Value(object->getPosition().x).asString() + cocos2d::Value(object->getPosition().y).asString()).c_str());
+		for (auto obj : object->getChildren()) {
+			cocos2d::log(("obj_begin" + cocos2d::Value(obj->getPosition().x).asString() + cocos2d::Value(obj->getPosition().y).asString()).c_str());
+			for (auto o : obj->getChildren()) {
+				cocos2d::log(("o_begin" + cocos2d::Value(o->getPosition().x).asString() + cocos2d::Value(o->getPosition().y).asString()).c_str());
+				o->setAnchorPoint(cocos2d::Vec2::ZERO);
+				cocos2d::log(("o_end" + cocos2d::Value(o->getPosition().x).asString() + cocos2d::Value(o->getPosition().y).asString()).c_str());
+			}
+			cocos2d::log(("obj_end" + cocos2d::Value(obj->getPosition().x).asString() + cocos2d::Value(obj->getPosition().y).asString()).c_str());
+		}
+		cocos2d::log(("object_end" + cocos2d::Value(object->getPosition().x).asString() + cocos2d::Value(object->getPosition().y).asString()).c_str());
+
+	};
+
 	if (timeSec == 0) {
 		object->setRotation(newdegree);
 	}
 	else
-		object->runAction(cocos2d::RotateTo::create(timeSec, newdegree));
-
+		object->runAction(
+			cocos2d::Sequence::create(
+				cocos2d::CallFunc::create(std::bind(setArchorToCenter, object)),
+				cocos2d::RotateTo::create(timeSec, newdegree),
+				cocos2d::CallFunc::create(std::bind(setArchorToZero, object)),
+				NULL
+			)
+		);
 	return object;
 }
 
@@ -77,11 +103,13 @@ LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, fl
 	if (newalpha <= 1)
 		newalpha *= 255;
 
+	object->setOpacity(0);
+
 	if (timeSec == 0) {
-		object->setOpacity(newalpha);
+		object->setOpacity((int)newalpha);
 	}
 	else
-		object->runAction(cocos2d::FadeTo::create(timeSec, newalpha));
+		object->runAction(cocos2d::FadeTo::create(timeSec, (int)newalpha));
 
 	return object;
 }

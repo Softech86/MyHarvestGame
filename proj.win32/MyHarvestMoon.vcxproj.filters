@@ -33,17 +33,11 @@
     <ClCompile Include="..\Classes\HelloWorldScene.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\Classes\GameCommand.cpp">
-      <Filter>src\FrameWork\Principal</Filter>
-    </ClCompile>
     <ClCompile Include="..\Classes\GamePrincipal.cpp">
       <Filter>src\FrameWork\Principal</Filter>
     </ClCompile>
     <ClCompile Include="..\Classes\GamePaint.cpp">
       <Filter>src\FrameWork\WorkPart</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Classes\GamePaintPool.cpp">
-      <Filter>src\FrameWork\Data</Filter>
     </ClCompile>
     <ClCompile Include="..\Classes\GameCalculate.cpp">
       <Filter>src\FrameWork\WorkPart</Filter>
@@ -67,9 +61,6 @@
     </ClInclude>
     <ClInclude Include="..\Classes\HelloWorldScene.h">
       <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Classes\GameCommand.h">
-      <Filter>src\FrameWork\Principal</Filter>
     </ClInclude>
     <ClInclude Include="..\Classes\GamePrincipal.h">
       <Filter>src\FrameWork\Principal</Filter>

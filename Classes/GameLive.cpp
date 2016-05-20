@@ -643,7 +643,11 @@ void GameLive::keyLoop() {
 void GameLive::enter() {
     this->api_sceneInit(farmSceneCode, BlockPos(100, 100));
 	this->api_sceneDisplay();
-	GamePrincipal::getPaint().objMove(this->_scene->surroundingCode(), PxPos(0, 0), PxPos(100, 100), MoveType::linear, 0.0f);
+	GamePrincipal::getPaint().objMove(this->_scene->surroundingCode(), PxPos(0, 0), PxPos(100, 100), MoveType::linear, 5.0f);
+	GamePrincipal::getPaint().objRotate(this->_scene->surroundingCode(), 0, 150, 7.0f);
+	//GamePrincipal::getPaint().objAlpha(this->_scene->surroundingCode(), 0, 0, 0.0f);
+	//GamePrincipal::getPaint().objRemove(this->_scene->surroundingCode());
+
 }
 
 void GameLive::init() {
