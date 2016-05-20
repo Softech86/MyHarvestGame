@@ -2,8 +2,16 @@
 #include "GameBase.h"
 #include "GamePrincipal.h"
 #include "cocos2d.h"
-#include "cocostudio\CocoStudio.h"
 #include "GamePaint.h"
+#include <cmath>
+
+// <----->
+void GameLive::enter() {
+    this->api_sceneInit(farmSceneCode, BlockPos(100, 100));
+	this->api_sceneDisplay();
+	GamePrincipal::getPaint().objMove(this->_scene->surroundingCode(), PxPos(0, 0), PxPos(100, 100), MoveType::linear, 0.0f);
+}
+// <----->
 
 GameLiveObject::GameLiveObject(ObjPtr pobj) {
     if (pobj == nullptr) {
@@ -18,18 +26,18 @@ GameLiveObject::GameLiveObject(ObjPtr pobj, const BlockPos& margin__)
     this->margin() = margin__;
 }
 
-BlockPos GameLiveObject::paintPos() {
-    return this->margin() + this->padding() + PxPos(1, 0) * this->zValue();
+BlockPos GameLiveObject::paintPos(const BlockPos& viewpoint) {
+    return this->MP() + PxPos(1, 0) * this->zValue() - viewpoint;
 }
 
-LiveCode GameLiveObject::paint(LiveCode father) {
-    BlockPos pos = this->paintPos();
+LiveCode GameLiveObject::paint(LiveCode father, const BlockPos& viewpoint) {
+    BlockPos pos = this->paintPos(viewpoint);
     LiveCode result;
     if(this->obj().isCustomPaint()) {
         result = this->obj().customPaint(father, pos);
     }
     else {
-        result = GamePrincipal::getPaint().objAddToObj(father, this->picture(), pos);
+        result = GamePrincipal::getPaint().objAddToObj(father, this->picture(), pos, scale(), alpha());
     }
     this->obj().afterPaint(result);
 	this->paintCode() = result;
@@ -37,12 +45,17 @@ LiveCode GameLiveObject::paint(LiveCode father) {
 }
 
 void GameLiveObject::erase() {
-    // TODO
+    GamePrincipal::getPaint().objRemove(this->paintCode());
 }
 
-LiveCode GameLiveObject::repaint() {
-    // TODO
-    return nullptr;
+void GameLiveObject::move(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint) {
+    BlockPos pos = this->paintPos(viewpoint);
+    GamePrincipal::getPaint().objMove(this->paintCode(), pos, pos + vec, move, timeSec);
+}
+
+LiveCode GameLiveObject::repaint(LiveCode father, const BlockPos& viewpoint) {
+	erase();
+	return paint(father, viewpoint);
 }
 
 GameLiveUI::GameLiveUI(UIPtr ori) {
@@ -55,7 +68,7 @@ GameLiveUI::GameLiveUI(UIPtr ori) {
 void GameLiveScene::blockAdd(const LiveObjPtr ptr) {
     if (ptr == nullptr)
         return;
-    BlockPos drawpos = ptr->margin() + ptr->padding();
+    BlockPos drawpos = ptr->MP();
     BlockPos scenesize = this->scene->size();
     for (int i = 0; i < ptr->size().x; i++) {
         for (int j = 0; j < ptr->size().y; j++) {
@@ -86,7 +99,7 @@ void GameLiveScene::dotRemoveLayer(LiveDot& ld, const LiveObjPtr ptr) {
 void GameLiveScene::blockRemove(const LiveObjPtr ptr) {
     if (ptr == nullptr)
         return;
-    BlockPos drawpos = ptr->margin() + ptr->padding();
+    BlockPos drawpos = ptr->MP();
     BlockPos scenesize = this->scene->size();
     for (int i = 0; i < ptr->size().x; i++) {
         for (int j = 0; j < ptr->size().y; j++) {
@@ -298,7 +311,14 @@ LiveObjPtr GameLiveScene::make(BaseCode ptr, bool scene, GameLiveObject::StickTo
 }
 
 LiveObjPtr GameLiveScene::make(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin, int z, float scale, float alpha) {
-    LiveObjPtr pt(new GameLiveObject(obj, margin));
+	BlockPos mppd = BlockPos::zero;
+    if(this->scene != nullptr)
+		mppd = this->scene->padding();
+	return make_(obj, stick, margin, mppd, BlockPos::zero, z, scale, alpha);
+}
+
+LiveObjPtr GameLiveScene::make_(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin, const BlockPos& mappadding, BlockPos parentAdd, int z, float scale, float alpha) {
+	LiveObjPtr pt(new GameLiveObject(obj, margin + mappadding + parentAdd));
     pt->zValue() = z;
     pt->scale() = scale;
     pt->alpha() = alpha;
@@ -306,22 +326,31 @@ LiveObjPtr GameLiveScene::make(ObjPtr obj, GameLiveObject::StickTo stick, const 
 
 	this->cacheAdd(pt);
 
-    // don't forget to create bind
     if(obj->type() == GameObject::BigType::combStuff) {
+		parentAdd += pt->MP();
         for(int index = 0; index < (int)obj->children().size(); index++) {
-            LiveObjPtr livechild = make(obj->children()[index].lock(), stick, obj->childrenPos()[index]);
+            LiveObjPtr livechild = make_(obj->children()[index].lock(), stick, obj->childrenPos()[index], mappadding, parentAdd, z, scale, alpha);
             addBind(pt, livechild);
         }
     }
     return pt;
 }
 
+LiveCode GameLiveScene::getParent(LiveObjPtr obj) {
+    LiveCode parent = nullptr;
+	if (obj->getStick() == GameLiveObject::StickTo::surroundings)
+		parent = this->codeSurrounding;
+	else if (obj->getStick() == GameLiveObject::StickTo::kid)
+		parent = this->codeKid;
+	return parent;
+}
+
 void GameLiveScene::init(const BlockPos& mazeSize) {
     auto pai = GamePrincipal::getPaint();
     
-    this->root = pai.nodeNew();
-    this->surrounding = pai.objAddToObj(this->root, "", PxPos::zero);
-    this->kid = pai.objAddToObj(this->root, "", PxPos::zero);
+    this->codeRoot = pai.nodeNew();
+    this->codeSurrounding = pai.objAddToObj(this->codeRoot, "", PxPos::zero);
+    this->codeKid = pai.objAddToObj(this->codeRoot, "", PxPos::zero);
     
     this->mazeSize = mazeSize;
     this->blockMap = new LiveDot[mazeSize.x * mazeSize.y];
@@ -329,22 +358,26 @@ void GameLiveScene::init(const BlockPos& mazeSize) {
 
 void GameLiveScene::setScene(BaseCode scene) {
 	this->scene = GamePrincipal::getBase().getScene(scene);
+	// scene.margin() always be zero
 	this->add(this->scene, GameLiveObject::StickTo::surroundings, BlockPos::zero);
+	// viewPoint initialize to the left-under corner of the area you can see in this scene
+	this->viewPoint = this->scene->padding();
 }
 
-void GameLiveScene::add(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin) {
+LiveObjPtr GameLiveScene::add(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin) {
     LiveObjPtr live = make(obj, stick, margin);
     add(live);
+	return live;
 }
 
 void GameLiveScene::cacheAdd(LiveObjPtr live) {
-	this->toDebug.push_back(live);
+	this->nodeCache.push_back(live);
 }
 
 void GameLiveScene::cacheRemove(LiveObjPtr live) {
-	for (auto lt = this->toDebug.begin(); lt != this->toDebug.end(); lt++) {
+	for (auto lt = this->nodeCache.begin(); lt != this->nodeCache.end(); lt++) {
 		if (*lt == live) {
-			this->toDebug.erase(lt);
+			this->nodeCache.erase(lt);
 			return;
 		}
 	}
@@ -352,16 +385,14 @@ void GameLiveScene::cacheRemove(LiveObjPtr live) {
 
 void GameLiveScene::add(LiveObjPtr live) {
     mapAdd(live, false);
-    LiveCode parent;
-
-	if (live->getStick() == GameLiveObject::StickTo::surroundings)
-		parent = this->surrounding;
-	else if (live->getStick() == GameLiveObject::StickTo::kid)
-		parent = this->kid;
-	else
+    LiveCode parent = this->getParent(live);
+	if(parent == nullptr)
 		return;
 
-	LiveCode code = live->paint(parent);
+	LiveCode code = live->paint(parent, this->viewPoint);
+	if(code == nullptr)
+		return;
+	
     dictAdd(code, live);
 	
 	this->cacheRemove(live);
@@ -369,6 +400,7 @@ void GameLiveScene::add(LiveObjPtr live) {
     for(auto childptr : live->outBind()) {
         add(childptr.lock());
     }
+	return;
 }
 
 void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
@@ -380,13 +412,12 @@ void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
     } else {
         mapRemove(live, false);
     }
-    GamePrincipal::getPaint().objRemove(live->paintCode());
+	live->erase();
     dictRemove(live->paintCode());
 }
 
 void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive) {
-    BlockPos pos = ptr->paintPos();
-    GamePrincipal::getPaint().objMove(ptr->paintCode(), pos, pos + vec, move, timeSec);
+	ptr->move(vec, move, timeSec, this->viewPoint);
     if(recursive) {
         mapMove(ptr, vec, false);
         for(auto childptr : ptr->outBind())
@@ -398,7 +429,90 @@ void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move,
 
 void GameLiveScene::replace(LiveObjPtr oldptr, ObjPtr newptr) {
     mapReplace(oldptr, newptr);
+	oldptr->repaint(this->getParent(oldptr), this->viewPoint);
     // I guess there should be no problem
+}
+
+void GameLiveScene::kidViewPoint() {
+	if(this->kidPtr() == nullptr)
+		return;
+	BlockPos result;
+	if(this->kidPtr()->MP().x + this->windowSize.x / 2 > this->scene->size().x + this->scene->padding().x) {
+		result.x = this->scene->size().x + this->scene->padding().x - this->windowSize.x;
+	}
+	else {
+		result.x = this->kidPtr()->MP().x - this->windowSize.x / 2;
+	}
+	if(this->kidPtr()->MP().y + this->windowSize.y / 2 > this->scene->size().y + this->scene->padding().y) {
+		result.y = this->scene->size().y + this->scene->padding().y - this->windowSize.y;
+	}
+	else {
+		result.y = this->kidPtr()->MP().y - this->windowSize.y / 2;
+	}
+	setViewPoint(result, GamePrincipal::getBase().kidMoveSpeed);
+}
+
+void GameLiveScene::setViewPoint(const BlockPos& point, float speedInBlocksPerSecond) {
+	float time = BlockPos::time(this->viewPoint, point, speedInBlocksPerSecond);
+	GamePrincipal::getPaint().objMove(this->rootCode(), -this->viewPoint, -point, MoveType::linear, time);
+	this->viewPoint = point;
+}
+
+void GameLiveScene::kidSet(ObjPtr child, const BlockPos& margin) {
+	if(child == nullptr)
+		return;
+	if(kidPtr() == nullptr) {
+		LiveObjPtr kind = GameLiveScene::make(child, GameLiveObject::StickTo::kid, margin);
+		add(kind);
+		this->liveKid = kind;
+	}
+	if(this->focusOnKid) {	
+		kidViewPoint();
+	}
+}
+
+void GameLiveScene::kidMove(const BlockPos& vec, MoveType type, float time, bool recursive) {
+	if(kidPtr() == nullptr)
+		return;
+	else {
+		movemove(this->kidPtr(), vec, type, time, recursive);
+		if(this->focusOnKid) {	
+			kidViewPoint();
+		}
+	}
+}
+
+void GameLiveScene::kidWalk(const BlockPos& vec) {
+	float time = BlockPos::time(vec, GamePrincipal::getBase().kidMoveSpeed);
+	kidMove(vec, MoveType::linear, time, true);
+}
+
+void GameLiveScene::kidRemove(bool recursive) {
+	if(kidPtr() == nullptr)
+		return;
+	else{
+		remove(kidPtr(), recursive);
+		this->liveKid = nullptr;
+	}
+}
+
+void GameLiveScene::kidReplace(ObjPtr newkid) {
+	if(kidPtr() == nullptr)
+		return;
+	else {
+		replace(this->kidPtr(), newkid);
+		if(this->focusOnKid) {	
+			kidViewPoint();
+		}
+	}
+}
+
+void GameLiveScene::moveFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin) {
+	if(obj->paintCode() != nullptr) {
+		obj->erase();
+	}
+	
+	// TODO
 }
 
 BlockPos GameLiveScene::getWindowRelativePosition(const BlockPos& pos) {
@@ -406,7 +520,7 @@ BlockPos GameLiveScene::getWindowRelativePosition(const BlockPos& pos) {
 }
 
 BlockPos GameLiveScene::getObjectRelativePosition(const BlockPos& pos, LiveObjPtr ptr) {
-    return pos - ptr->margin();
+    return pos - ptr->MP();
 }
 
 Walkable GameLiveScene::detect(LiveObjPtr ptr, const LiveDot& ld, const BlockPos& current, LiveObjPtr& out_jumpObj) {
@@ -510,7 +624,7 @@ Walkable GameLiveScene::detect(LiveObjPtr newptr, const BlockPos::Direction& dir
     }
 
 
-    BlockPos drawpos = newptr->margin() + newptr->padding() + start;
+    BlockPos drawpos = newptr->MP() + start;
     BlockPos scenesize = this->scene->size();
 
     bool twobreaks = false;
@@ -640,12 +754,6 @@ void GameLive::keyLoop() {
     //cocos2d::Director::getInstance()->getScheduler()->schedule(std::bind(&judgeSch, tmp), tmp, _loopfreq, false, KEY_LOOP_NAME);
 }
 
-void GameLive::enter() {
-    this->api_sceneInit(farmSceneCode, BlockPos(100, 100));
-	this->api_sceneDisplay();
-	GamePrincipal::getPaint().objMove(this->_scene->surroundingCode(), PxPos(0, 0), PxPos(100, 100), MoveType::linear, 0.0f);
-}
-
 void GameLive::init() {
     if (_keys == nullptr)
         _keys = new bool[KEY_COUNT];
@@ -689,6 +797,19 @@ void GameLive::api_sceneInit(BaseCode sceneCode, BlockPos mazeSize) {
 
 void GameLive::api_sceneDisplay() {
 	GamePrincipal::getPaint().nodeDisplay(this->_scene->rootCode());
+}
+
+void GameLive::api_kidSet(BaseCode kidCode, const BlockPos& pos) {
+	ObjPtr pt = GamePrincipal::getBase().getStuff(kidCode);
+	api_kidSet(pt, pos);
+}
+
+void GameLive::api_kidSet(ObjPtr ptr, const BlockPos& pos) {
+	this->_scene->kidSet(ptr, pos);
+}
+
+void GameLive::api_kidWalk(const BlockPos& vec) {
+	this->_scene->kidWalk(vec);
 }
 
 void GameLive::judge() {

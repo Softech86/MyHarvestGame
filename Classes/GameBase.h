@@ -283,6 +283,8 @@ private:
     std::vector<TransPtr> transData;
     std::vector<UIPtr> UIData;
 public:
+	// 2 big blocks per sec
+	float kidMoveSpeed = 2 * BIG_TO_SMALL;
     void init();
     ObjPtr getStuff(BaseCode code);
     ObjPtr getScene(BaseCode code);
