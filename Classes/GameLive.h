@@ -197,8 +197,9 @@ public:
     void movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive = true);
     void replace(LiveObjPtr oldptr, ObjPtr newptr);
     
-	void kidViewPoint();
-	void setViewPoint(const BlockPos& margin, float speedInBlocksPerSecond);
+	void kidViewPoint(bool flash);
+	void setViewPoint(const BlockPos& point);
+	void moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond);
 	
     void kidSet(ObjPtr child, const BlockPos& margin);
     void kidMove(const BlockPos& vec, MoveType type, float time, bool recursive = true);
@@ -211,6 +212,8 @@ public:
     
     void allDim(bool black = true);
     void allClear();
+
+	void setWindowSize(const BlockPos& size) { this->windowSize = size; }
 
     BlockPos getWindowRelativePosition(const BlockPos& pos);
     static BlockPos getObjectRelativePosition(const BlockPos& pos, LiveObjPtr ptr);
@@ -252,6 +255,7 @@ public:
         return this->_keys;
     }
 
+	bool api_setWindowSize(const BlockPos& size);
     void api_UIStart(BaseCode uicode);
     void api_UIStart(UIPtr uiptr);
     void api_UIStop(LiveCode id);

@@ -23,7 +23,7 @@ LiveCode GamePaint::nodeNew() {
 }
 
 bool GamePaint::nodeDisplay(LiveCode needDisplayed) {
-	needDisplayed->setPosition(100, 100);
+	//needDisplayed->setPosition(100, 100);
 	GamePaint::mainsc->addChild(needDisplayed);
     return true;
 }

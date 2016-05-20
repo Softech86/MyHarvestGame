@@ -8,8 +8,10 @@
 // <----->
 void GameLive::enter() {
     this->api_sceneInit(farmSceneCode, BlockPos(100, 100));
+	this->api_setWindowSize(BlockPos(PxPos(960, 640)));
 	this->api_sceneDisplay();
-	GamePrincipal::getPaint().objMove(this->_scene->surroundingCode(), PxPos(0, 0), PxPos(100, 100), MoveType::linear, 0.0f);
+	this->api_kidSet(KidCode, BigBlockPos(1, 4));
+	this->api_kidWalk(BigBlockPos(12, 12));
 }
 // <----->
 
@@ -433,12 +435,15 @@ void GameLiveScene::replace(LiveObjPtr oldptr, ObjPtr newptr) {
     // I guess there should be no problem
 }
 
-void GameLiveScene::kidViewPoint() {
+void GameLiveScene::kidViewPoint(bool flash) {
 	if(this->kidPtr() == nullptr)
 		return;
 	BlockPos result;
 	if(this->kidPtr()->MP().x + this->windowSize.x / 2 > this->scene->size().x + this->scene->padding().x) {
 		result.x = this->scene->size().x + this->scene->padding().x - this->windowSize.x;
+	}
+	else if (this->kidPtr()->MP().x - this->windowSize.x / 2 < this->scene->padding().x) {
+		result.x = this->scene->padding().x;
 	}
 	else {
 		result.x = this->kidPtr()->MP().x - this->windowSize.x / 2;
@@ -446,13 +451,23 @@ void GameLiveScene::kidViewPoint() {
 	if(this->kidPtr()->MP().y + this->windowSize.y / 2 > this->scene->size().y + this->scene->padding().y) {
 		result.y = this->scene->size().y + this->scene->padding().y - this->windowSize.y;
 	}
+	else if (this->kidPtr()->MP().y - this->windowSize.y / 2 < this->scene->padding().y) {
+		result.y = this->scene->padding().y;
+	}
 	else {
 		result.y = this->kidPtr()->MP().y - this->windowSize.y / 2;
 	}
-	setViewPoint(result, GamePrincipal::getBase().kidMoveSpeed);
+	if (flash)
+		setViewPoint(result);
+	else
+		moveViewPoint(result, GamePrincipal::getBase().kidMoveSpeed);
 }
 
-void GameLiveScene::setViewPoint(const BlockPos& point, float speedInBlocksPerSecond) {
+void GameLiveScene::setViewPoint(const BlockPos& point) {
+	GamePrincipal::getPaint().objMove(this->rootCode(), -this->viewPoint, -point, MoveType::linear, 0);
+}
+
+void GameLiveScene::moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond) {
 	float time = BlockPos::time(this->viewPoint, point, speedInBlocksPerSecond);
 	GamePrincipal::getPaint().objMove(this->rootCode(), -this->viewPoint, -point, MoveType::linear, time);
 	this->viewPoint = point;
@@ -467,7 +482,7 @@ void GameLiveScene::kidSet(ObjPtr child, const BlockPos& margin) {
 		this->liveKid = kind;
 	}
 	if(this->focusOnKid) {	
-		kidViewPoint();
+		kidViewPoint(true);
 	}
 }
 
@@ -477,7 +492,7 @@ void GameLiveScene::kidMove(const BlockPos& vec, MoveType type, float time, bool
 	else {
 		movemove(this->kidPtr(), vec, type, time, recursive);
 		if(this->focusOnKid) {	
-			kidViewPoint();
+			kidViewPoint(false);
 		}
 	}
 }
@@ -502,7 +517,7 @@ void GameLiveScene::kidReplace(ObjPtr newkid) {
 	else {
 		replace(this->kidPtr(), newkid);
 		if(this->focusOnKid) {	
-			kidViewPoint();
+			kidViewPoint(true);
 		}
 	}
 }
@@ -762,6 +777,15 @@ void GameLive::init() {
     this->keySet();
     this->enter();
     this->keyLoop();
+}
+
+bool GameLive::api_setWindowSize(const BlockPos& size) {
+	if (this->_scene == nullptr)
+		return false;
+	else {
+		this->_scene->setWindowSize(size);
+		return true;
+	}
 }
 
 void GameLive::api_UIStart(BaseCode uicode) {
