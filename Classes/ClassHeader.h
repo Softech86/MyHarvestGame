@@ -6,6 +6,11 @@
 #include <functional>
 #include "cocos2d.h"
 
+#define SHCP shallowCopy
+#define SHCP_BASE(type) virtual inline type SHCP() { return type(*this); }
+// 所有的继承类给我把这句话加上
+#define SHCP_OVERRIDE(base, child) virtual inline base SHCP() override { return child(*this); }
+
 using std::vector;
 using std::string;
 using std::map;
@@ -35,6 +40,7 @@ enum GameKeyPress {
     buttonRight,
     buttonA,
     buttonB,
+	buttonC,
     buttonStart,
     buttonSpace,
 };

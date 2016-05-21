@@ -1,16 +1,19 @@
 #pragma once
+#include <chrono>
 #include "ClassHeader.h"
 
 class GamePaint {
 public:
-    static cocos2d::Scene* mainsc;
+    cocos2d::Scene* mainsc;
+	decltype(std::chrono::system_clock::now()) gameStartTime;
 public:
-    static void init();
+    void init();
+	// get the time elapsed from when the game started in milliseconds
+	long long clock();
     
     LiveCode nodeNew();
     bool nodeDisplay(LiveCode scene);
     void nodeRemove(LiveCode scene);
-    
     void nodeRemoveAllChildren(LiveCode node);
     
     LiveCode objAddToObj(LiveCode parent, const string& picture, const PxPos& pos, float scale = 1, float alpha = 1);
@@ -19,4 +22,5 @@ public:
     LiveCode objAlpha(LiveCode object, float oldalpha, float newalpha, float timeSec);
     void objRemove(LiveCode object);
     
+	long long getCurrentTime();
 };

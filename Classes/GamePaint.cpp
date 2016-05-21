@@ -1,16 +1,24 @@
 #include "GamePaint.h"
 #include "GamePrincipal.h"
+#include "cocos2d.h"
 #include "cocostudio/CocoStudio.h"
 
 using cocos2d::Node;
 using cocos2d::Scene;
 
-Scene* GamePaint::mainsc = nullptr;
-
 void GamePaint::init() {
 	auto scene = cocos2d::Scene::create();
-	GamePaint::mainsc = scene;
+	this->mainsc = scene;
 	cocos2d::Director::getInstance()->runWithScene(scene);
+	this->gameStartTime = std::chrono::system_clock::now();
+}
+
+// get the time elapsed from when the game started in milliseconds
+long long GamePaint::clock() {
+	auto end = std::chrono::system_clock::now();
+	auto dur = end - this->gameStartTime;
+	auto msec = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+	return msec;
 }
 
 LiveCode GamePaint::nodeNew() {

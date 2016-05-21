@@ -204,6 +204,7 @@ public:
         return this->_customPaint;
     }
 
+	SHCP_BASE(GameObject);
     virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event);
     virtual LiveCode customPaint(LiveCode father, const BlockPos& pos);
     virtual void afterPaint(LiveCode obj);
@@ -230,7 +231,8 @@ public:
     static TransPtr create(BaseCode code, vector<TransPtr> *container = nullptr) {
         return T_create<TranslatorType>(code, container);
     }
-    
+
+	SHCP_BASE(GameTranslator);
     virtual GameCommand translate(float* arrOfKeys);
 
     virtual ~GameTranslator() {
@@ -256,6 +258,7 @@ public:
         return T_create<LinkerType, LinkerPtr>(code, container);
     }
     
+	SHCP_BASE(GameLinker);
     virtual LinkerReturn link(GameCommand);
 
     virtual ~GameLinker() {
@@ -270,6 +273,7 @@ public:
     GameEvent() {
     }
 
+	SHCP_BASE(GameEvent);
     virtual bool start(LiveObjPtr obj);
 
     virtual ~GameEvent() {

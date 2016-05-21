@@ -45,6 +45,8 @@ public:
         return create<UIClass>(code, name, GamePrincipal::getBase().getTranslator(translator), container);
     }
 
+	
+	SHCP_BASE(GameUI);
     virtual LiveCode start();
     virtual string save();
     virtual JudgeReturn action(float* keyarray);
@@ -72,21 +74,25 @@ public:
 
 class StartPageUI : public GameUI {
 public:
+	SHCP_OVERRIDE(GameUI, StartPageUI);
     virtual LiveCode start() override;
 	virtual JudgeReturn action(float* keyarray) override;
 };
 
 class BasicMenuTranslator : public GameTranslator {
 public:
+	SHCP_OVERRIDE(GameTranslator, BasicMenuTranslator);
 	virtual GameCommand translate(float* keyarray) override;
 };
 
 class BasicMoveTranslator : public GameTranslator {
 public:
+	SHCP_OVERRIDE(GameTranslator, BasicMoveTranslator);
 	virtual GameCommand translate(float* keyarray) override;
 };
 
 class StartGameEvent : public GameEvent {
 public:
+	SHCP_OVERRIDE(GameEvent, StartGameEvent);
 	virtual bool start(LiveObjPtr obj) override;
 };

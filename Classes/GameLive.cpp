@@ -7,7 +7,7 @@
 
 // <----->
 void GameLive::enter() {
-	GamePrincipal::getLive().api_setWindowSize(BlockPos(PxPos(960, 640)));
+	api_setWindowSize(BlockPos(PxPos(960, 640)));
 	api_UIStart(UICode::startPageCode);
 }
 // <----->
@@ -16,7 +16,7 @@ GameLiveObject::GameLiveObject(ObjPtr pobj) {
     if (pobj == nullptr) {
         _obj = GameObject::origin;
     } else {
-        _obj = *pobj;
+        _obj = pobj->SHCP();
     }
 }
 
@@ -33,24 +33,31 @@ BlockPos GameLiveObject::paintPos(const BlockPos& viewpoint) {
 LiveCode GameLiveObject::paint(LiveCode father, const BlockPos& viewpoint) {
     BlockPos pos = this->paintPos(viewpoint);
     LiveCode result;
-    if(this->obj().isCustomPaint()) {
-        result = this->obj().customPaint(father, pos);
+	if (this->getObj().isCustomPaint()) {
+		result = this->getObj().customPaint(father, pos);
     }
     else {
         result = GamePrincipal::getPaint().objAddToObj(father, this->picture(), pos, scale(), alpha());
     }
-    this->obj().afterPaint(result);
+	this->getObj().afterPaint(result);
 	this->paintCode() = result;
     return result;
 }
 
 void GameLiveObject::erase() {
     GamePrincipal::getPaint().objRemove(this->paintCode());
+	this->paintCode() = nullptr;
 }
 
 void GameLiveObject::move(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint) {
     BlockPos pos = this->paintPos(viewpoint);
     GamePrincipal::getPaint().objMove(this->paintCode(), pos, pos + vec, move, timeSec);
+}
+
+void GameLiveObject::cleanMove(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint) {
+	BlockPos pos = this->paintPos(viewpoint);
+	GamePrincipal::getPaint().objMove(this->paintCode(), pos, pos + vec, move, timeSec);
+	// TODO
 }
 
 LiveCode GameLiveObject::repaint(LiveCode father, const BlockPos& viewpoint) {
@@ -60,10 +67,10 @@ LiveCode GameLiveObject::repaint(LiveCode father, const BlockPos& viewpoint) {
 
 GameLiveUI::GameLiveUI(UIPtr ori) {
 	if (ori == nullptr) {
-		this->_ui = UIPtr(new GameUI(GameUI::origin));
+		this->_ui = GameUI::origin;
 	}
     else
-        this->_ui = ori;
+        this->_ui = ori->SHCP();
 }
 
 void GameLiveScene::blockAdd(const LiveObjPtr ptr) {
@@ -131,7 +138,7 @@ void GameLiveScene::blockReplace(LiveObjPtr oldptr, ObjPtr newobj) {
         return;
     else {
         blockRemove(oldptr);
-        oldptr->obj() = *newobj;
+		oldptr->setObj(newobj);
         blockAdd(oldptr);
     }
 }
@@ -521,12 +528,27 @@ void GameLiveScene::kidReplace(ObjPtr newkid) {
 	}
 }
 
-void GameLiveScene::moveFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin) {
-	if(obj->paintCode() != nullptr) {
-		obj->erase();
-	}
-	
+void GameLiveScene::switchFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin, bool recursive) {
+	remove(obj, recursive);
+	obj->setStick(GameLiveObject::StickTo::kid);
+	obj->margin = margin;
+	add(obj);
+}
+
+void GameLiveScene::switchFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin, bool recursive) {
+	remove(obj, recursive);
+	obj->setStick(GameLiveObject::StickTo::surroundings);
+	obj->margin = margin;
+	add(obj);
+}
+
+void GameLiveScene::allDim(bool black = true) {
 	// TODO
+}
+
+void GameLiveScene::allClear() {
+	GamePrincipal::getPaint().nodeRemoveAllChildren(this->surroundingCode());
+	GamePrincipal::getPaint().nodeRemoveAllChildren(this->kidCode());
 }
 
 BlockPos GameLiveScene::getWindowRelativePosition(const BlockPos& pos) {
@@ -705,12 +727,15 @@ void GameLive::keySet() {
             case cocos2d::EventKeyboard::KeyCode::KEY_D:
                 GamePrincipal::getLive().keys()[GameKeyPress::buttonRight] += GamePrincipal::getLive().getLoopFreq();
                 break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_Z:
+            case cocos2d::EventKeyboard::KeyCode::KEY_J:
                 GamePrincipal::getLive().keys()[GameKeyPress::buttonA] += GamePrincipal::getLive().getLoopFreq();
                 break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_X:
+            case cocos2d::EventKeyboard::KeyCode::KEY_K:
                 GamePrincipal::getLive().keys()[GameKeyPress::buttonB] += GamePrincipal::getLive().getLoopFreq();
-                break;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_L:
+				GamePrincipal::getLive().keys()[GameKeyPress::buttonC] += GamePrincipal::getLive().getLoopFreq();
+				break;
             case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
                 GamePrincipal::getLive().keys()[GameKeyPress::buttonStart] += GamePrincipal::getLive().getLoopFreq();
                 break;
@@ -735,12 +760,15 @@ void GameLive::keySet() {
             case cocos2d::EventKeyboard::KeyCode::KEY_D:
                 GamePrincipal::getLive().keys()[GameKeyPress::buttonRight] = 0;
                 break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_Z:
+            case cocos2d::EventKeyboard::KeyCode::KEY_J:
                 GamePrincipal::getLive().keys()[GameKeyPress::buttonA] = 0;
                 break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_X:
+            case cocos2d::EventKeyboard::KeyCode::KEY_K:
                 GamePrincipal::getLive().keys()[GameKeyPress::buttonB] = 0;
-                break;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_L:
+				GamePrincipal::getLive().keys()[GameKeyPress::buttonC] = 0;
+				break;
             case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
                 GamePrincipal::getLive().keys()[GameKeyPress::buttonStart] = 0;
                 break;
@@ -753,6 +781,17 @@ void GameLive::keySet() {
     };
     cocos2d::Director::getInstance()->getEventDispatcher()->addEventListenerWithFixedPriority(el, 1);
 }
+
+
+BlockPos GameLiveScene::nextVectorToApproachALine(const BlockPos& lineTarget, const BlockPos& now) {
+	// 这要分八种情况啊。
+}
+
+GameLiveScene::detectMoveReturn GameLiveScene::detectMoveOneObject(LiveObjPtr obj, const BlockPos& vec, MoveType move, float timeSec) {
+
+}
+
+
 
 const string GameLive::KEY_LOOP_NAME = "keyboardLoop";
 
@@ -801,7 +840,7 @@ void GameLive::api_UIStart(UIPtr uip) {
     } else if (uip->type() == GameUI::down) {
         this->_UIDown.push_back(glu);
     }
-    glu->id() = glu->UI()->start(); // 所以就这样子直接调用了？不知道。
+    glu->id() = glu->UI().start(); // 所以就这样子直接调用了？不知道。
 	GamePrincipal::getPaint().nodeDisplay(glu->id());
 }
 
@@ -821,6 +860,16 @@ void GameLive::api_sceneInit(BaseCode sceneCode, BlockPos mazeSize) {
 
 void GameLive::api_sceneDisplay() {
 	GamePrincipal::getPaint().nodeDisplay(this->_scene->rootCode());
+}
+
+void GameLive::api_sceneCalculate() {
+	// TODO npc position calculate, scene object calculate, and more
+}
+
+void GameLive::api_sceneICD(BaseCode sceneCode, BlockPos mazeSize) {
+	api_sceneInit(sceneCode, mazeSize);
+	api_sceneCalculate();
+	api_sceneDisplay();
 }
 
 void GameLive::api_kidSet(BaseCode kidCode, const BlockPos& pos) {
@@ -844,7 +893,7 @@ step_one:
         else {
             EventPtr eve = nullptr;
             LiveUIPtr ptt = _UIUp[i];
-            JudgeReturn jud = ptt->UI()->action(this->_keys);
+            JudgeReturn jud = ptt->UI().action(this->_keys);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }
@@ -874,7 +923,7 @@ step_three:
         else {
             EventPtr eve = nullptr;
             LiveUIPtr ptt = _UIUp[i];
-            JudgeReturn jud = ptt->UI()->action(this->_keys);
+            JudgeReturn jud = ptt->UI().action(this->_keys);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }

@@ -18,6 +18,8 @@ private:
     float _scale = 1;
     float _alpha = 1;
     StickTo _stickTo = surroundings;
+	// it is from when the game started in milliseconds
+	long long _movingUntil = 0;
     vector<LiveObjWeak> _inBind;
     vector<LiveObjWeak> _outBind;
 public:
@@ -30,9 +32,13 @@ public:
     : GameLiveObject(isScene ? GamePrincipal::getBase().getScene(code) : GamePrincipal::getBase().getStuff(code)) {
     }
 
-    GameObject& obj() {
+    GameObject& getObj() {
         return this->_obj;
     }
+
+	void setObj(ObjPtr obj) {
+		this->_obj = obj->SHCP();
+	}
 
     LiveCode& paintCode() {
         return this->_paintCode;
@@ -98,12 +104,13 @@ public:
     LiveCode paint(LiveCode father, const BlockPos& viewpoint);
     void erase();
 	void move(const BlockPos& vec, MoveType move, float timeSec,const BlockPos& viewpoint);
+	void cleanMove(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint);
     LiveCode repaint(LiveCode father, const BlockPos& viewpoint);
 };
 
 class GameLiveUI {
 private:
-    UIPtr _ui;
+    GameUI _ui;
     LiveCode _id;
 public:
 
@@ -111,7 +118,7 @@ public:
     }
     GameLiveUI(UIPtr ori);
 
-    UIPtr UI() {
+    GameUI& UI() {
         return this->_ui;
     }
 
@@ -171,6 +178,8 @@ private:
 	
     LiveObjPtr make_(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin, const BlockPos& mappadding, BlockPos parentAdd, int z, float scale, float alpha);
 	LiveCode getParent(LiveObjPtr obj);
+
+	BlockPos nextVectorToApproachALine(const BlockPos& lineTarget, const BlockPos& now);
 public:
     GameLiveScene() { }
 
@@ -208,8 +217,8 @@ public:
     void kidRemove(bool recursive = true);
 	void kidReplace(ObjPtr newkid);
 
-    void moveFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin);
-    void moveFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin);
+	void switchFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin, bool recursive = false);
+	void switchFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin, bool recursive = false);
     
     void allDim(bool black = true);
     void allClear();
@@ -220,6 +229,11 @@ public:
     static BlockPos getObjectRelativePosition(const BlockPos& pos, LiveObjPtr ptr);
     Walkable detect(LiveObjPtr ptr, const LiveDot& ld, const BlockPos& current, LiveObjPtr& out_jumpObj);
     Walkable detect(LiveObjPtr ptr, const BlockPos::Direction& dir, LiveObjPtr& out_jumpObj);
+
+	enum detectMoveReturn { canMove, cannotMove, breakedMove };
+	// TODO 关于检测移动这里还有一个坑要填啊
+	detectMoveReturn detectMoveOneObject(LiveObjPtr obj, const BlockPos& vec, MoveType move, float timeSec);
+	BlockPos detectDistanceCouldMove(LiveObjPtr obj, const BlockPos& vec, Walkable& out_walk, LiveObjPtr& out_jumpObj);
 
     ~GameLiveScene() {
         if (blockMap != nullptr)
@@ -239,6 +253,7 @@ private:
     float _loopfreq = LOOP_FREQ_MS / 1000;
     bool _close = false;
     float* _keys;
+	float timeInGame = 0;
 
 public:
 
@@ -265,12 +280,13 @@ public:
     void api_eventStart(EventPtr eve, LiveObjPtr obj);
     void api_close();
     
-    LiveCode api_getCurrentSceneCode();
+	GameLiveScene* api_getCurrentScenePtr() { return this->_scene; }
 
     void api_sceneInit(BaseCode sceneCode, BlockPos mazeSize);
     void api_sceneDisplay();
-    // scene according to the time or anything more is processed here
+    // calculate the object on scene according to the time or something more is processed here
     void api_sceneCalculate();
+	void api_sceneICD(BaseCode sceneCode, BlockPos mazeSize);
 	void api_kidSet(BaseCode kidCode, const BlockPos& pos);
     void api_kidSet(ObjPtr ptr, const BlockPos& pos);
     void api_kidWalk(const BlockPos& vec);

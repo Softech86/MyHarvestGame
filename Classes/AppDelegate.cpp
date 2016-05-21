@@ -44,7 +44,7 @@ bool AppDelegate::applicationDidFinishLaunching() {
     director->setDisplayStats(true);
 
     // set FPS. the default value is 1.0/60 if you don't call this
-    director->setAnimationInterval(GameLive::LOOP_FREQ_MS/1000);
+    director->setAnimationInterval((float)GameLive::LOOP_FREQ_MS/1000);
 
     FileUtils::getInstance()->addSearchPath("res");
 
