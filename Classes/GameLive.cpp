@@ -7,11 +7,8 @@
 
 // <----->
 void GameLive::enter() {
-    this->api_sceneInit(farmSceneCode, BlockPos(100, 100));
-	this->api_setWindowSize(BlockPos(PxPos(960, 640)));
-	this->api_sceneDisplay();
-	this->api_kidSet(KidCode, BigBlockPos(1, 4));
-	this->api_kidWalk(BigBlockPos(12, 12));
+	GamePrincipal::getLive().api_setWindowSize(BlockPos(PxPos(960, 640)));
+	api_UIStart(UICode::startPageCode);
 }
 // <----->
 
@@ -28,6 +25,7 @@ GameLiveObject::GameLiveObject(ObjPtr pobj, const BlockPos& margin__)
     this->margin() = margin__;
 }
 
+// 计算绘画的屏幕相对位置
 BlockPos GameLiveObject::paintPos(const BlockPos& viewpoint) {
     return this->MP() + PxPos(1, 0) * this->zValue() - viewpoint;
 }
@@ -61,10 +59,11 @@ LiveCode GameLiveObject::repaint(LiveCode father, const BlockPos& viewpoint) {
 }
 
 GameLiveUI::GameLiveUI(UIPtr ori) {
-    if (ori == nullptr)
-        this->_ui = GameUI::origin;
+	if (ori == nullptr) {
+		this->_ui = UIPtr(new GameUI(GameUI::origin));
+	}
     else
-        this->_ui = *ori;
+        this->_ui = ori;
 }
 
 void GameLiveScene::blockAdd(const LiveObjPtr ptr) {
@@ -695,28 +694,28 @@ void GameLive::keySet() {
     el->onKeyPressed = [](cocos2d::EventKeyboard::KeyCode kc, cocos2d::Event * event) {
         switch (kc) {
             case cocos2d::EventKeyboard::KeyCode::KEY_W:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonUp] = true;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonUp] += GamePrincipal::getLive().getLoopFreq();
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_A:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonLeft] = true;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonLeft] += GamePrincipal::getLive().getLoopFreq();
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_S:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonDown] = true;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonDown] += GamePrincipal::getLive().getLoopFreq();
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_D:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonRight] = true;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonRight] += GamePrincipal::getLive().getLoopFreq();
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_Z:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonA] = true;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonA] += GamePrincipal::getLive().getLoopFreq();
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_X:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonB] = true;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonB] += GamePrincipal::getLive().getLoopFreq();
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonStart] = true;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonStart] += GamePrincipal::getLive().getLoopFreq();
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_SPACE:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonSpace] = true;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonSpace] += GamePrincipal::getLive().getLoopFreq();
                 break;
             default:
                 break;
@@ -725,28 +724,28 @@ void GameLive::keySet() {
     el->onKeyReleased = [](cocos2d::EventKeyboard::KeyCode kc, cocos2d::Event * event) {
         switch (kc) {
             case cocos2d::EventKeyboard::KeyCode::KEY_W:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonUp] = false;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonUp] = 0;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_A:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonLeft] = false;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonLeft] = 0;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_S:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonDown] = false;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonDown] = 0;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_D:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonRight] = false;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonRight] = 0;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_Z:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonA] = false;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonA] = 0;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_X:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonB] = false;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonB] = 0;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonStart] = false;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonStart] = 0;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_SPACE:
-                GamePrincipal::getLive().keys()[GameKeyPress::buttonSpace] = false;
+                GamePrincipal::getLive().keys()[GameKeyPress::buttonSpace] = 0;
                 break;
             default:
                 break;
@@ -771,7 +770,7 @@ void GameLive::keyLoop() {
 
 void GameLive::init() {
     if (_keys == nullptr)
-        _keys = new bool[KEY_COUNT];
+        _keys = new float[KEY_COUNT];
     if (_keys == nullptr)
         return;
     this->keySet();
@@ -802,14 +801,15 @@ void GameLive::api_UIStart(UIPtr uip) {
     } else if (uip->type() == GameUI::down) {
         this->_UIDown.push_back(glu);
     }
-    glu->id() = glu->UI().start(); // 所以就这样子直接调用了？不知道。
+    glu->id() = glu->UI()->start(); // 所以就这样子直接调用了？不知道。
+	GamePrincipal::getPaint().nodeDisplay(glu->id());
 }
 
 void GameLive::api_eventStart(EventPtr eve, LiveObjPtr obj) {
     if (eve == nullptr)
         return;
     else {
-        eve->start(obj); // 所以就这样子直接调用了？不知道。
+        auto tmp = eve->start(obj); // 所以就这样子直接调用了？不知道。
     }
 }
 
@@ -844,7 +844,7 @@ step_one:
         else {
             EventPtr eve = nullptr;
             LiveUIPtr ptt = _UIUp[i];
-            JudgeReturn jud = ptt->UI().action(this->_keys);
+            JudgeReturn jud = ptt->UI()->action(this->_keys);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }
@@ -874,7 +874,7 @@ step_three:
         else {
             EventPtr eve = nullptr;
             LiveUIPtr ptt = _UIUp[i];
-            JudgeReturn jud = ptt->UI().action(this->_keys);
+            JudgeReturn jud = ptt->UI()->action(this->_keys);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }

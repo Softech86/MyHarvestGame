@@ -90,6 +90,7 @@ public:
         this->_stickTo = to;
     }
     
+	// 内外位置之和
 	BlockPos MP() { return this->margin() + this->padding(); }
     BlockPos paintPos(const BlockPos& viewpoint);
 
@@ -102,7 +103,7 @@ public:
 
 class GameLiveUI {
 private:
-    GameUI _ui;
+    UIPtr _ui;
     LiveCode _id;
 public:
 
@@ -110,7 +111,7 @@ public:
     }
     GameLiveUI(UIPtr ori);
 
-    GameUI& UI() {
+    UIPtr UI() {
         return this->_ui;
     }
 
@@ -237,12 +238,13 @@ private:
     GameLiveScene* _scene = nullptr;
     float _loopfreq = LOOP_FREQ_MS / 1000;
     bool _close = false;
-    bool* _keys;
+    float* _keys;
 
 public:
 
     GameLive() {
     }
+	float getLoopFreq() { return this->_loopfreq; }
 
     void keySet();
     void enter();
@@ -251,7 +253,7 @@ public:
     void keyLoop();
     void judge();
 
-    bool* keys() {
+    float* keys() {
         return this->_keys;
     }
 

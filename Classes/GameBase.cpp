@@ -41,6 +41,7 @@ void GameBase::init() {
     
     // UI Create
     GameUI::create<StartPageUI>(startPageCode, "startPage", basicMenuTranslator,  &UIData);
+
 }
 
 BlockPos BlockPos::dirToBlock(Direction dir) {
@@ -137,7 +138,7 @@ bool GameEvent::start(LiveObjPtr obj) {
     return true;
 }
 
-TransPtr GameTranslator::create(BaseCode code, std::function<GameCommand(bool*)> &method, vector<TransPtr> *container) {
+TransPtr GameTranslator::create(BaseCode code, std::function<GameCommand(float*)> &method, vector<TransPtr> *container) {
     TransPtr pt(new GameTranslator(method));
     T_push(container, pt, code);
     return pt;
@@ -153,7 +154,7 @@ LinkerReturn GameLinker::link(GameCommand gcmd) {
     return convert(gcmd);
 }
 
-GameCommand GameTranslator::translate(bool* arrOfKeys) {
+GameCommand GameTranslator::translate(float* arrOfKeys) {
     return convert(arrOfKeys);
 }
 
