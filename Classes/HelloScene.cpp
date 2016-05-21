@@ -1,6 +1,9 @@
 #include "HelloScene.h"
 #include "cocostudio/CocoStudio.h"
 #include "ui/CocosGUI.h"
+#include "GameLive.h"
+#include "GamePaint.h"
+#include "GamePrincipal.h"
 
 USING_NS_CC;
 
@@ -59,9 +62,10 @@ void Hello::enterBtnOper(Ref*, TouchEventType type) {
 			enterBtn->setTitleColor(Color3B(255, 255, 255));
 		break;
 	case TouchEventType::TOUCH_EVENT_ENDED:
-		/*Director::getInstance()->replaceScene(
-			TransitionFade::create(0.6f, Ground::createScene()));
-		*/break;
+		GamePrincipal::getLive().api_sceneICD(farmSceneCode, BlockPos(100, 100), BlockPos(PxPos(960, 640)));
+		GamePrincipal::getLive().api_kidSet(KidCode, BigBlockPos(1, 4));
+		GamePrincipal::getLive().api_kidWalk(BigBlockPos(14, 8));
+		break;
 	case TouchEventType::TOUCH_EVENT_CANCELED:
 		enterBtn->setTitleColor(Color3B(0, 0, 0));
 		break;

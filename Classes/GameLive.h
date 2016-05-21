@@ -11,15 +11,15 @@ class GameLiveObject {
 public:
     enum StickTo{ surroundings, kid };
 private:
-    GameObject _obj;
+    ObjPtr _obj;
     LiveCode _paintCode = nullptr;
     BlockPos _margin;
     int _z = 0; // TODO z = (z, 0) move needs speed settings 
     float _scale = 1;
     float _alpha = 1;
     StickTo _stickTo = surroundings;
-	// it is from when the game started in milliseconds
-	long long _movingUntil = 0;
+	// it is from when the game started in seconds
+	float _movingUntil = 0;
     vector<LiveObjWeak> _inBind;
     vector<LiveObjWeak> _outBind;
 public:
@@ -32,12 +32,12 @@ public:
     : GameLiveObject(isScene ? GamePrincipal::getBase().getScene(code) : GamePrincipal::getBase().getStuff(code)) {
     }
 
-    GameObject& getObj() {
+    ObjPtr getObj() {
         return this->_obj;
     }
 
 	void setObj(ObjPtr obj) {
-		this->_obj = obj->SHCP();
+		this->_obj = ObjPtr(obj->SHCP());
 	}
 
     LiveCode& paintCode() {
@@ -45,11 +45,11 @@ public:
     }
 
     string& picture() {
-        return this->_obj.picture();
+        return this->_obj->picture();
     }
 
     BlockPos& size() {
-        return this->_obj.size();
+        return this->_obj->size();
     }
 
     BlockPos& margin() {
@@ -57,15 +57,15 @@ public:
     }
 
     BlockPos& padding() {
-        return this->_obj.padding();
+        return this->_obj->padding();
     }
 
     WalkType& walktype() {
-        return this->_obj.walktype();
+        return this->_obj->walktype();
     }
 
     GameAlpha& walkBMP() {
-        return this->_obj.walkBMP();
+        return this->_obj->walkBMP();
     }
 
     int& zValue() {
@@ -100,17 +100,16 @@ public:
 	BlockPos MP() { return this->margin() + this->padding(); }
     BlockPos paintPos(const BlockPos& viewpoint);
 
-    //TODO z alpha scale
-    LiveCode paint(LiveCode father, const BlockPos& viewpoint);
-    void erase();
-	void move(const BlockPos& vec, MoveType move, float timeSec,const BlockPos& viewpoint);
-	void cleanMove(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint);
-    LiveCode repaint(LiveCode father, const BlockPos& viewpoint);
+	LiveCode paint(LiveCode father, const BlockPos& viewpoint);
+	void erase(LiveCode father);
+	void move(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint, float delaySec = 0);
+	void cleanMove(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint, float delaySec = 0);
+	LiveCode repaint(LiveCode father, const BlockPos& viewpoint);
 };
 
 class GameLiveUI {
 private:
-    GameUI _ui;
+    UIPtr _ui;
     LiveCode _id;
 public:
 
@@ -118,7 +117,7 @@ public:
     }
     GameLiveUI(UIPtr ori);
 
-    GameUI& UI() {
+    UIPtr UI() {
         return this->_ui;
     }
 
@@ -143,6 +142,8 @@ private:
 	LiveObjPtr liveKid = nullptr;
     map<LiveCode, LiveObjPtr> dict;
 	vector<LiveObjPtr> nodeCache;
+	LiveObjPtr liveHand = nullptr;
+	int NumHand = 0;
     
     LiveDot* blockMap = nullptr;
     TransPtr defaultTranslator = nullptr;
@@ -180,6 +181,7 @@ private:
 	LiveCode getParent(LiveObjPtr obj);
 
 	BlockPos nextVectorToApproachALine(const BlockPos& lineTarget, const BlockPos& now);
+	bool DistanceToCentralLine(const BlockPos& windowRelative, const BlockPos& direction, PxPos& outResult);
 public:
     GameLiveScene() { }
 
@@ -207,15 +209,18 @@ public:
     void movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive = true);
     void replace(LiveObjPtr oldptr, ObjPtr newptr);
     
-	void kidViewPoint(bool flash);
+	void kidViewPoint(const BlockPos& oldpos, const BlockPos& newpos, bool flash);
 	void setViewPoint(const BlockPos& point);
-	void moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond);
+	void moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond, float delaySec = 0);
 	
     void kidSet(ObjPtr child, const BlockPos& margin);
     void kidMove(const BlockPos& vec, MoveType type, float time, bool recursive = true);
 	void kidWalk(const BlockPos& vec);
     void kidRemove(bool recursive = true);
 	void kidReplace(ObjPtr newkid);
+
+	//TODO
+	void delayTime(std::function<void()> func, float delaySec);
 
 	void switchFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin, bool recursive = false);
 	void switchFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin, bool recursive = false);
@@ -243,14 +248,16 @@ public:
 
 class GameLive {
 public:
-    static const int LOOP_FREQ_MS = 20;
-    static const int KEY_COUNT = 20;
+	static const int LOOP_FREQ_MS = 20;
+	static const int LOOP_DEVATION_MS = 5;
+	static const int KEY_COUNT = 20;
     static const string KEY_LOOP_NAME;
 private:
     vector<LiveUIPtr> _UIUp;
     vector<LiveUIPtr> _UIDown;
-    GameLiveScene* _scene = nullptr;
-    float _loopfreq = LOOP_FREQ_MS / 1000;
+	GameLiveScene* _scene = nullptr;
+	float _loopfreq = LOOP_FREQ_MS / 1000;
+	float _loopdevation = LOOP_DEVATION_MS / 1000;
     bool _close = false;
     float* _keys;
 	float timeInGame = 0;
@@ -272,6 +279,13 @@ public:
         return this->_keys;
     }
 
+
+	bool keyPushedOnly(GameKeyPress gkp);
+	bool keyPushedOnly(vector<GameKeyPress> vgkp);
+	bool keyJustPushedOnly(GameKeyPress gkp);
+	bool keyJustPushedOnly(vector<GameKeyPress> vgkp);
+
+
 	bool api_setWindowSize(const BlockPos& size);
     void api_UIStart(BaseCode uicode);
     void api_UIStart(UIPtr uiptr);
@@ -286,7 +300,7 @@ public:
     void api_sceneDisplay();
     // calculate the object on scene according to the time or something more is processed here
     void api_sceneCalculate();
-	void api_sceneICD(BaseCode sceneCode, BlockPos mazeSize);
+	void api_sceneICD(BaseCode sceneCodev, const BlockPos& mazeSize, const BlockPos& windowSize);
 	void api_kidSet(BaseCode kidCode, const BlockPos& pos);
     void api_kidSet(ObjPtr ptr, const BlockPos& pos);
     void api_kidWalk(const BlockPos& vec);

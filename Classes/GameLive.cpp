@@ -7,16 +7,15 @@
 
 // <----->
 void GameLive::enter() {
-	api_setWindowSize(BlockPos(PxPos(960, 640)));
 	api_UIStart(UICode::startPageCode);
 }
 // <----->
 
 GameLiveObject::GameLiveObject(ObjPtr pobj) {
     if (pobj == nullptr) {
-        _obj = GameObject::origin;
+        _obj = ObjPtr(new GameObject(GameObject::origin));
     } else {
-        _obj = pobj->SHCP();
+        _obj = ObjPtr(pobj->SHCP());
     }
 }
 
@@ -33,44 +32,57 @@ BlockPos GameLiveObject::paintPos(const BlockPos& viewpoint) {
 LiveCode GameLiveObject::paint(LiveCode father, const BlockPos& viewpoint) {
     BlockPos pos = this->paintPos(viewpoint);
     LiveCode result;
-	if (this->getObj().isCustomPaint()) {
-		result = this->getObj().customPaint(father, pos);
+	if (this->getObj()->isCustomPaint()) {
+		result = this->getObj()->customPaint(father, pos);
     }
     else {
         result = GamePrincipal::getPaint().objAddToObj(father, this->picture(), pos, scale(), alpha());
     }
-	this->getObj().afterPaint(result);
+	this->getObj()->afterPaint(result);
 	this->paintCode() = result;
     return result;
 }
 
-void GameLiveObject::erase() {
-    GamePrincipal::getPaint().objRemove(this->paintCode());
+void GameLiveObject::erase(LiveCode father) {
+    GamePrincipal::getPaint().objRemove(this->paintCode(), father);
 	this->paintCode() = nullptr;
 }
 
-void GameLiveObject::move(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint) {
+void GameLiveObject::move(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint, float delaySec) {
     BlockPos pos = this->paintPos(viewpoint);
-    GamePrincipal::getPaint().objMove(this->paintCode(), pos, pos + vec, move, timeSec);
+	auto pai = GamePrincipal::getPaint();
+	float now = pai.clock();
+	float delay = 0;
+	if (_movingUntil < now) {
+		delay = 0;
+	}
+	else {
+		delay = _movingUntil - now + delaySec;
+		_movingUntil += delaySec + timeSec;
+	}
+    pai.objMove(this->paintCode(), pos, pos + vec, move, timeSec, delay);
 }
 
-void GameLiveObject::cleanMove(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint) {
+void GameLiveObject::cleanMove(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint, float delaySec) {
 	BlockPos pos = this->paintPos(viewpoint);
-	GamePrincipal::getPaint().objMove(this->paintCode(), pos, pos + vec, move, timeSec);
+	auto pai = GamePrincipal::getPaint();
+	float now = pai.clock();
+	_movingUntil = now + delaySec + timeSec;
+	pai.objMove(this->paintCode(), pos, pos + vec, move, timeSec, delaySec);
 	// TODO
 }
 
 LiveCode GameLiveObject::repaint(LiveCode father, const BlockPos& viewpoint) {
-	erase();
+	erase(father);
 	return paint(father, viewpoint);
 }
 
 GameLiveUI::GameLiveUI(UIPtr ori) {
 	if (ori == nullptr) {
-		this->_ui = GameUI::origin;
+		this->_ui = UIPtr(new GameUI(GameUI::origin));
 	}
     else
-        this->_ui = ori->SHCP();
+        this->_ui = UIPtr(ori->SHCP());
 }
 
 void GameLiveScene::blockAdd(const LiveObjPtr ptr) {
@@ -420,7 +432,7 @@ void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
     } else {
         mapRemove(live, false);
     }
-	live->erase();
+	live->erase(this->getParent(live));
     dictRemove(live->paintCode());
 }
 
@@ -441,41 +453,62 @@ void GameLiveScene::replace(LiveObjPtr oldptr, ObjPtr newptr) {
     // I guess there should be no problem
 }
 
-void GameLiveScene::kidViewPoint(bool flash) {
+bool GameLiveScene::DistanceToCentralLine(const BlockPos& windowRelative, const BlockPos& direction, PxPos& outResult) {
+	if (direction == BlockPos::zero)
+		return false;
+	float lineY = this->windowSize.y / 2, lineX = this->windowSize.x / 2;
+	float disY = lineY - windowRelative.y, disX = lineX - windowRelative.x;
+	float timeY, timeX;
+	timeY = disY / direction.y;
+	timeX = disX / direction.x;
+	if (timeY < 0 && timeX < 0)
+		return false;
+	PxPos result = direction;
+	result = result * (timeX < timeY ? timeX : timeY);
+	outResult = result;
+	return true;
+}
+
+void GameLiveScene::kidViewPoint(const BlockPos& oldpos, const BlockPos& newpos, bool flash) {
 	if(this->kidPtr() == nullptr)
 		return;
+	PxPos dist = PxPos::zero;
+	bool flag = this->DistanceToCentralLine(getWindowRelativePosition(oldpos), newpos - oldpos, dist);
 	BlockPos result;
-	if(this->kidPtr()->MP().x + this->windowSize.x / 2 > this->scene->size().x + this->scene->padding().x) {
+	if(newpos.x + this->windowSize.x / 2 > this->scene->size().x + this->scene->padding().x) {
 		result.x = this->scene->size().x + this->scene->padding().x - this->windowSize.x;
 	}
-	else if (this->kidPtr()->MP().x - this->windowSize.x / 2 < this->scene->padding().x) {
+	else if (newpos.x - this->windowSize.x / 2 < this->scene->padding().x) {
 		result.x = this->scene->padding().x;
 	}
 	else {
-		result.x = this->kidPtr()->MP().x - this->windowSize.x / 2;
+		result.x = newpos.x - this->windowSize.x / 2;
 	}
-	if(this->kidPtr()->MP().y + this->windowSize.y / 2 > this->scene->size().y + this->scene->padding().y) {
+	if(newpos.y + this->windowSize.y / 2 > this->scene->size().y + this->scene->padding().y) {
 		result.y = this->scene->size().y + this->scene->padding().y - this->windowSize.y;
 	}
-	else if (this->kidPtr()->MP().y - this->windowSize.y / 2 < this->scene->padding().y) {
+	else if (newpos.y - this->windowSize.y / 2 < this->scene->padding().y) {
 		result.y = this->scene->padding().y;
 	}
 	else {
-		result.y = this->kidPtr()->MP().y - this->windowSize.y / 2;
+		result.y = newpos.y - this->windowSize.y / 2;
 	}
+
 	if (flash)
 		setViewPoint(result);
-	else
-		moveViewPoint(result, GamePrincipal::getBase().kidMoveSpeed);
+	else {
+		float time = PxPos::time(dist, GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX);
+		moveViewPoint(result, GamePrincipal::getBase().kidMoveSpeed, time);
+	}
 }
 
 void GameLiveScene::setViewPoint(const BlockPos& point) {
 	GamePrincipal::getPaint().objMove(this->rootCode(), -this->viewPoint, -point, MoveType::linear, 0);
 }
 
-void GameLiveScene::moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond) {
+void GameLiveScene::moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond, float delaySec) {
 	float time = BlockPos::time(this->viewPoint, point, speedInBlocksPerSecond);
-	GamePrincipal::getPaint().objMove(this->rootCode(), -this->viewPoint, -point, MoveType::linear, time);
+	GamePrincipal::getPaint().objMove(this->rootCode(), -this->viewPoint, -point, MoveType::linear, time, delaySec);
 	this->viewPoint = point;
 }
 
@@ -488,7 +521,7 @@ void GameLiveScene::kidSet(ObjPtr child, const BlockPos& margin) {
 		this->liveKid = kind;
 	}
 	if(this->focusOnKid) {	
-		kidViewPoint(true);
+		kidViewPoint(BlockPos::zero, this->liveKid->MP(), true);
 	}
 }
 
@@ -496,9 +529,10 @@ void GameLiveScene::kidMove(const BlockPos& vec, MoveType type, float time, bool
 	if(kidPtr() == nullptr)
 		return;
 	else {
+		BlockPos temp = this->liveKid->MP();
 		movemove(this->kidPtr(), vec, type, time, recursive);
 		if(this->focusOnKid) {	
-			kidViewPoint(false);
+			kidViewPoint(temp, this->liveKid->MP(), false);
 		}
 	}
 }
@@ -522,27 +556,24 @@ void GameLiveScene::kidReplace(ObjPtr newkid) {
 		return;
 	else {
 		replace(this->kidPtr(), newkid);
-		if(this->focusOnKid) {	
-			kidViewPoint(true);
-		}
 	}
 }
 
 void GameLiveScene::switchFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin, bool recursive) {
 	remove(obj, recursive);
 	obj->setStick(GameLiveObject::StickTo::kid);
-	obj->margin = margin;
+	obj->margin() = margin;
 	add(obj);
 }
 
 void GameLiveScene::switchFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin, bool recursive) {
 	remove(obj, recursive);
 	obj->setStick(GameLiveObject::StickTo::surroundings);
-	obj->margin = margin;
+	obj->margin() = margin;
 	add(obj);
 }
 
-void GameLiveScene::allDim(bool black = true) {
+void GameLiveScene::allDim(bool black) {
 	// TODO
 }
 
@@ -785,10 +816,11 @@ void GameLive::keySet() {
 
 BlockPos GameLiveScene::nextVectorToApproachALine(const BlockPos& lineTarget, const BlockPos& now) {
 	// 这要分八种情况啊。
+	return BlockPos::zero;
 }
 
 GameLiveScene::detectMoveReturn GameLiveScene::detectMoveOneObject(LiveObjPtr obj, const BlockPos& vec, MoveType move, float timeSec) {
-
+	return GameLiveScene::detectMoveReturn::canMove;
 }
 
 
@@ -840,7 +872,7 @@ void GameLive::api_UIStart(UIPtr uip) {
     } else if (uip->type() == GameUI::down) {
         this->_UIDown.push_back(glu);
     }
-    glu->id() = glu->UI().start(); // 所以就这样子直接调用了？不知道。
+    glu->id() = glu->UI()->start(); // 所以就这样子直接调用了？不知道。
 	GamePrincipal::getPaint().nodeDisplay(glu->id());
 }
 
@@ -866,10 +898,11 @@ void GameLive::api_sceneCalculate() {
 	// TODO npc position calculate, scene object calculate, and more
 }
 
-void GameLive::api_sceneICD(BaseCode sceneCode, BlockPos mazeSize) {
+void GameLive::api_sceneICD(BaseCode sceneCode, const BlockPos& mazeSize, const BlockPos& windowSize) {
 	api_sceneInit(sceneCode, mazeSize);
 	api_sceneCalculate();
 	api_sceneDisplay();
+	api_setWindowSize(windowSize);
 }
 
 void GameLive::api_kidSet(BaseCode kidCode, const BlockPos& pos) {
@@ -893,7 +926,7 @@ step_one:
         else {
             EventPtr eve = nullptr;
             LiveUIPtr ptt = _UIUp[i];
-            JudgeReturn jud = ptt->UI().action(this->_keys);
+            JudgeReturn jud = ptt->UI()->action(this->_keys);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }
@@ -923,7 +956,7 @@ step_three:
         else {
             EventPtr eve = nullptr;
             LiveUIPtr ptt = _UIUp[i];
-            JudgeReturn jud = ptt->UI().action(this->_keys);
+            JudgeReturn jud = ptt->UI()->action(this->_keys);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }
@@ -947,3 +980,56 @@ step_three:
     }
 
 }
+
+
+bool GameLive::keyPushedOnly(GameKeyPress gkp) {
+	auto keys = GamePrincipal::getLive().keys();
+	//pushed
+	if (keys[gkp] <= _loopdevation)
+		return false;
+	//only
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (i != gkp && keys[i] > _loopdevation)
+			return false;
+	return true;
+}
+
+bool GameLive::keyPushedOnly(vector<GameKeyPress> vgkp) {
+	auto keys = GamePrincipal::getLive().keys();
+	//pushed
+	for (auto gkp = vgkp.begin(); gkp < vgkp.end(); ++gkp)
+		if (keys[*gkp] <= _loopdevation)
+			return false;
+	//only
+	int keyPressedNum = 0;
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (keys[i] > _loopdevation)
+			++keyPressedNum;
+	return ((int)vgkp.size()) == keyPressedNum;
+}
+
+bool GameLive::keyJustPushedOnly(GameKeyPress gkp) {
+	auto keys = GamePrincipal::getLive().keys();
+	//pushed
+	if (keys[gkp] < _loopfreq - _loopdevation || keys[gkp] > _loopfreq + _loopdevation) //考虑可以忽略的延迟时间?
+		return false;
+	//only
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (i != gkp && (keys[i] >= _loopfreq - _loopdevation && keys[i] <= _loopfreq + _loopdevation))
+			return false;
+	return true;
+}
+bool GameLive::keyJustPushedOnly(vector<GameKeyPress> vgkp) {
+	auto keys = GamePrincipal::getLive().keys();
+	//pushed
+	for (auto gkp = vgkp.begin(); gkp < vgkp.end(); ++gkp)
+		if (keys[*gkp] < _loopfreq - _loopdevation || keys[*gkp] > _loopfreq + _loopdevation) //考虑可以忽略的延迟时间?
+			return false;
+	//only
+	int keyPressedNum = 0;
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (keys[i] >= _loopfreq - _loopdevation && keys[i] <= _loopfreq + _loopdevation)
+			++keyPressedNum;
+	return ((int)vgkp.size()) == keyPressedNum;
+}
+

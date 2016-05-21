@@ -7,9 +7,9 @@
 #include "cocos2d.h"
 
 #define SHCP shallowCopy
-#define SHCP_BASE(type) virtual inline type SHCP() { return type(*this); }
+#define SHCP_BASE(type) virtual inline type* SHCP() { return new type(*this); }
 // 所有的继承类给我把这句话加上
-#define SHCP_OVERRIDE(base, child) virtual inline base SHCP() override { return child(*this); }
+#define SHCP_OVERRIDE(base, child) virtual inline base* SHCP() override { return new child(*this); }
 
 using std::vector;
 using std::string;
@@ -34,15 +34,17 @@ enum KeyName {
 };
 
 enum GameKeyPress {
-    buttonUp,
-    buttonDown,
-    buttonLeft,
-    buttonRight,
-    buttonA,
-    buttonB,
+	buttonEmpty,
+	buttonUp,
+	buttonDown,
+	buttonLeft,
+	buttonRight,
+	buttonA,
+	buttonB,
 	buttonC,
-    buttonStart,
-    buttonSpace,
+	buttonStart,
+	buttonSpace,
+	buttonEnd,
 };
 
 enum GameCommand {
@@ -151,7 +153,7 @@ public:
         return PxPos(this->x - rhs.x, this->y - rhs.y);
     }
 
-    PxPos operator*(const int mul) const {
+    PxPos operator*(const float mul) const {
         return PxPos(this->x * mul, this->y * mul);
     }
 
@@ -179,6 +181,17 @@ public:
             return true;
         else
             return false;
+	}
+	static float time(const PxPos& left, const PxPos& right, float speedInPxPerSecond) {
+		float xt = left.x - right.x;
+		float yt = left.y - right.y;
+		return std::sqrt((xt * xt) + (yt * yt)) / speedInPxPerSecond;
+	}
+
+	static float time(const PxPos& distance, float speedInPxPerSecond) {
+		float xt = distance.x;
+		float yt = distance.y;
+		return std::sqrt((xt * xt) + (yt * yt)) / speedInPxPerSecond;
 	}
 
 	cocos2d::Vec2 toVec2() const {
@@ -215,7 +228,7 @@ public:
     void moveBack(Direction dir);
     static BlockPos dirToBlock(Direction dir);
 
-    operator PxPos() {
+    operator PxPos() const {
         return PxPos(this->x * SMALL_BLOCK_PX, this->y * SMALL_BLOCK_PX);
     }
 

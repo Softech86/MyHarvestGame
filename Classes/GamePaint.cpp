@@ -13,12 +13,12 @@ void GamePaint::init() {
 	this->gameStartTime = std::chrono::system_clock::now();
 }
 
-// get the time elapsed from when the game started in milliseconds
-long long GamePaint::clock() {
+// get the time elapsed from when the game started in seconds
+float GamePaint::clock() {
 	auto end = std::chrono::system_clock::now();
 	auto dur = end - this->gameStartTime;
-	auto msec = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
-	return msec;
+	float msec = std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+	return msec / 1000;
 }
 
 LiveCode GamePaint::nodeNew() {
@@ -60,13 +60,18 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 	return node;
 }
 
-LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& newpos, MoveType type, float timeSec){
-	// TODO
+LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& newpos, MoveType type, float timeSec, float delaySec){
 	if (timeSec == 0) {
 		object->setPosition(newpos.toVec2());
 	}
 	else
-		object->runAction(cocos2d::MoveTo::create(timeSec, newpos.toVec2()));
+		object->runAction(
+		cocos2d::Sequence::create(
+		cocos2d::DelayTime::create(delaySec),
+		cocos2d::MoveTo::create(timeSec, newpos.toVec2()),
+		NULL
+		)
+		);
 
 	return object;
 }
@@ -81,6 +86,6 @@ LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, fl
     return nullptr;
 }
 
-void GamePaint::objRemove(LiveCode object) {
-    //TODO
+void GamePaint::objRemove(LiveCode object, LiveCode parent) {
+	parent->removeChild(object);
 }
