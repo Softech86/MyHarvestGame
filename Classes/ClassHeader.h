@@ -104,7 +104,6 @@ typedef cocos2d::Node* LiveCode;
 
 class GameLive;
 class GameBase;
-class GamePaintPool;
 class GamePrincipal;
 class GameCalculate;
 class GamePaint;
@@ -114,7 +113,7 @@ class GameUI;
 const PxType BIG_BLOCK_PX = 50;
 // 每个小格子占用的像素大小
 const PxType SMALL_BLOCK_PX = 10;
-const PxType BIG_TO_SMALL = BIG_BLOCK_PX / SMALL_BLOCK_PX;
+const BlockType BIG_TO_SMALL = BIG_BLOCK_PX / SMALL_BLOCK_PX;
 
 // Well, 根据Cocos2dx的模式，这个x方向从左至右，y方向从下至上
 
@@ -255,6 +254,18 @@ public:
         else
             return false;
     }
+	
+	static float time(const BlockPos& left, const BlockPos& right, float speedInBlocksPerSecond) {
+		float xt = left.x - right.x;
+		float yt = left.y - right.y;
+		return std::sqrt((xt * xt) + (yt * yt)) / speedInBlocksPerSecond;
+	}
+	
+	static float time(const BlockPos& distance, float speedInBlocksPerSecond) {
+		float xt = distance.x;
+		float yt = distance.y;
+		return std::sqrt((xt * xt) + (yt * yt)) / speedInBlocksPerSecond;
+	}
 };
 
 struct BigBlockPos {

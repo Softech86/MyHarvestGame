@@ -16,11 +16,23 @@ void GameBase::init() {
 	GameObject::create(GameObject::BigType::kid, KidCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "Kid.csb");
 
     // Scene Create
-	ObjPtr farmsc = GameObject::create(GameObject::BigType::combStuff, farmSceneCode, "farmScene", "", BigBlockPos(20, 20), WalkType::allWalk, &sceneData, "");
+	ObjPtr farmsc = GameObject::create(GameObject::BigType::combStuff, farmSceneCode, "farmScene", "", BigBlockPos(20, 20), WalkType::allWalk, &sceneData, "WhiteNode.csb");
 	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BlockPos(0, 0));
-	//farmsc->children().push_back(getStuff(soilHoedCode));
-	//farmsc->childrenPos().push_back(BlockPos(6, 3));	
+	farmsc->childrenPos().push_back(BigBlockPos(0, 0));
+	farmsc->children().push_back(getStuff(soilHoedCode));
+	farmsc->childrenPos().push_back(BigBlockPos(1, 1));
+	farmsc->children().push_back(getStuff(soilHoedCode));
+	farmsc->childrenPos().push_back(BigBlockPos(2, 2));
+	farmsc->children().push_back(getStuff(soilHoedCode));
+	farmsc->childrenPos().push_back(BigBlockPos(3, 3));
+	farmsc->children().push_back(getStuff(soilHoedCode));
+	farmsc->childrenPos().push_back(BigBlockPos(4, 4));
+	farmsc->children().push_back(getStuff(soilHoedCode));
+	farmsc->childrenPos().push_back(BigBlockPos(5, 5));
+	farmsc->children().push_back(getStuff(soilHoedCode));
+	farmsc->childrenPos().push_back(BigBlockPos(6, 6));
+	farmsc->children().push_back(getStuff(soilHoedCode));
+	farmsc->childrenPos().push_back(BigBlockPos(7, 7));
 
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
@@ -29,6 +41,7 @@ void GameBase::init() {
     
     // UI Create
     GameUI::create<StartPageUI>(startPageCode, "startPage", basicMenuTranslator,  &UIData);
+
 }
 
 BlockPos BlockPos::dirToBlock(Direction dir) {
@@ -125,7 +138,7 @@ bool GameEvent::start(LiveObjPtr obj) {
     return true;
 }
 
-TransPtr GameTranslator::create(BaseCode code, std::function<GameCommand(bool*)> &method, vector<TransPtr> *container) {
+TransPtr GameTranslator::create(BaseCode code, std::function<GameCommand(float*)> &method, vector<TransPtr> *container) {
     TransPtr pt(new GameTranslator(method));
     T_push(container, pt, code);
     return pt;
@@ -141,7 +154,7 @@ LinkerReturn GameLinker::link(GameCommand gcmd) {
     return convert(gcmd);
 }
 
-GameCommand GameTranslator::translate(bool* arrOfKeys) {
+GameCommand GameTranslator::translate(float* arrOfKeys) {
     return convert(arrOfKeys);
 }
 

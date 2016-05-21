@@ -214,24 +214,24 @@ public:
 
 class GameTranslator {
 private:
-    std::function<GameCommand(bool*) > convert = [](bool* key) {
+    std::function<GameCommand(float*) > convert = [](float* key) {
         return GameCommand::emptyCmd;
     }; // use anonymous function?
 public:
 
     GameTranslator() {
     }
-    GameTranslator(std::function<GameCommand(bool*)> &method)
+    GameTranslator(std::function<GameCommand(float*)> &method)
     : convert(method) {        
     }
     
-    static TransPtr create(BaseCode code, std::function<GameCommand(bool*)> &method, vector<TransPtr> *container = nullptr);
+    static TransPtr create(BaseCode code, std::function<GameCommand(float*)> &method, vector<TransPtr> *container = nullptr);
     template<class TranslatorType>
     static TransPtr create(BaseCode code, vector<TransPtr> *container = nullptr) {
         return T_create<TranslatorType>(code, container);
     }
     
-    virtual GameCommand translate(bool* arrOfKeys);
+    virtual GameCommand translate(float* arrOfKeys);
 
     virtual ~GameTranslator() {
     }
@@ -283,6 +283,8 @@ private:
     std::vector<TransPtr> transData;
     std::vector<UIPtr> UIData;
 public:
+	// 2 big blocks per sec
+	float kidMoveSpeed = 3 * BIG_TO_SMALL;
     void init();
     ObjPtr getStuff(BaseCode code);
     ObjPtr getScene(BaseCode code);

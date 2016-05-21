@@ -47,7 +47,7 @@ public:
 
     virtual LiveCode start();
     virtual string save();
-    virtual JudgeReturn action(bool* keyarray);
+    virtual JudgeReturn action(float* keyarray);
     virtual void stop();
 
     UIType& type() {
@@ -72,16 +72,21 @@ public:
 
 class StartPageUI : public GameUI {
 public:
-    LiveCode start() override;
-    JudgeReturn action(bool* keyarray) override;
+    virtual LiveCode start() override;
+	virtual JudgeReturn action(float* keyarray) override;
 };
 
 class BasicMenuTranslator : public GameTranslator {
 public:
-    GameCommand translate(bool* keyarray) override;
+	virtual GameCommand translate(float* keyarray) override;
 };
 
 class BasicMoveTranslator : public GameTranslator {
 public:
-    GameCommand translate(bool* keyarray) override;
+	virtual GameCommand translate(float* keyarray) override;
+};
+
+class StartGameEvent : public GameEvent {
+public:
+	virtual bool start(LiveObjPtr obj) override;
 };

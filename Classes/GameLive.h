@@ -90,19 +90,20 @@ public:
         this->_stickTo = to;
     }
     
-    BlockPos paintPos();
+	// 内外位置之和
+	BlockPos MP() { return this->margin() + this->padding(); }
+    BlockPos paintPos(const BlockPos& viewpoint);
 
-    //TODO
-    LiveCode paintRoot(LiveCode scene);
     //TODO z alpha scale
-    LiveCode paint(LiveCode father);
+    LiveCode paint(LiveCode father, const BlockPos& viewpoint);
     void erase();
-    LiveCode repaint();
+	void move(const BlockPos& vec, MoveType move, float timeSec,const BlockPos& viewpoint);
+    LiveCode repaint(LiveCode father, const BlockPos& viewpoint);
 };
 
 class GameLiveUI {
 private:
-    GameUI _ui;
+    UIPtr _ui;
     LiveCode _id;
 public:
 
@@ -110,7 +111,7 @@ public:
     }
     GameLiveUI(UIPtr ori);
 
-    GameUI& UI() {
+    UIPtr UI() {
         return this->_ui;
     }
 
@@ -129,11 +130,12 @@ private:
     // MazeSize must be larger than the padding size, or I don't know what will happen
     BlockPos mazeSize;
     bool focusOnKid = true;
-    LiveCode root = nullptr;
-    LiveCode surrounding = nullptr;
-    LiveCode kid = nullptr;
+    LiveCode codeRoot = nullptr;
+    LiveCode codeSurrounding = nullptr;
+    LiveCode codeKid = nullptr;
+	LiveObjPtr liveKid = nullptr;
     map<LiveCode, LiveObjPtr> dict;
-	vector<LiveObjPtr> toDebug;
+	vector<LiveObjPtr> nodeCache;
     
     LiveDot* blockMap = nullptr;
     TransPtr defaultTranslator = nullptr;
@@ -166,42 +168,53 @@ private:
 
 	void cacheAdd(LiveObjPtr ptr);
 	void cacheRemove(LiveObjPtr ptr);
+	
+    LiveObjPtr make_(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin, const BlockPos& mappadding, BlockPos parentAdd, int z, float scale, float alpha);
+	LiveCode getParent(LiveObjPtr obj);
 public:
     GameLiveScene() { }
 
 public:
-    LiveCode rootCode() { return this->root; };
-	LiveCode surroundingCode() { return this->surrounding; }
-	LiveCode kidCode() { return this->kid; }
+    LiveCode rootCode() { return this->codeRoot; };
+	LiveCode surroundingCode() { return this->codeSurrounding; }
+	LiveCode kidCode() { return this->codeKid; }
+	LiveObjPtr kidPtr() { return this->liveKid; }
     
     // we get the code once it is painted, then we should add it into the dictionary
     LiveObjPtr queryCode(LiveCode code); 
     // mix some numbers into a LiveObj
     LiveObjPtr make(BaseCode ptr, bool scene, GameLiveObject::StickTo stick, const BlockPos& margin, int z = 0, float scale = 1, float alpha = 1);
     LiveObjPtr make(ObjPtr ptr, GameLiveObject::StickTo stick, const BlockPos& margin, int z = 0, float scale = 1, float alpha = 1);
-    
+	
     // there are three root nodes in every Live Scene, this method should create it
     void init(const BlockPos& Mazesize);
 	void setScene(BaseCode scenecode);
 
     // add a stuff to the scene
-    void add(ObjPtr ptr, GameLiveObject::StickTo stick, const BlockPos& margin);
+    LiveObjPtr add(ObjPtr ptr, GameLiveObject::StickTo stick, const BlockPos& margin);
     // add a stuff to the scene, this LiveObject should not be painted at the moment
-    void add(LiveObjPtr j);
+	void add(LiveObjPtr j);
     void remove(LiveObjPtr ptr, bool recursive = true);
     void movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive = true);
     void replace(LiveObjPtr oldptr, ObjPtr newptr);
     
-    // If you want to add kid to the map or change the picture the kid use, call this method
+	void kidViewPoint(bool flash);
+	void setViewPoint(const BlockPos& point);
+	void moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond);
+	
     void kidSet(ObjPtr child, const BlockPos& margin);
-    void kidMove(const BlockPos& vec);
-    void kidRemove();
+    void kidMove(const BlockPos& vec, MoveType type, float time, bool recursive = true);
+	void kidWalk(const BlockPos& vec);
+    void kidRemove(bool recursive = true);
+	void kidReplace(ObjPtr newkid);
 
     void moveFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin);
     void moveFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin);
     
     void allDim(bool black = true);
     void allClear();
+
+	void setWindowSize(const BlockPos& size) { this->windowSize = size; }
 
     BlockPos getWindowRelativePosition(const BlockPos& pos);
     static BlockPos getObjectRelativePosition(const BlockPos& pos, LiveObjPtr ptr);
@@ -225,12 +238,13 @@ private:
     GameLiveScene* _scene = nullptr;
     float _loopfreq = LOOP_FREQ_MS / 1000;
     bool _close = false;
-    bool* _keys;
+    float* _keys;
 
 public:
 
     GameLive() {
     }
+	float getLoopFreq() { return this->_loopfreq; }
 
     void keySet();
     void enter();
@@ -239,10 +253,11 @@ public:
     void keyLoop();
     void judge();
 
-    bool* keys() {
+    float* keys() {
         return this->_keys;
     }
 
+	bool api_setWindowSize(const BlockPos& size);
     void api_UIStart(BaseCode uicode);
     void api_UIStart(UIPtr uiptr);
     void api_UIStop(LiveCode id);
@@ -256,11 +271,12 @@ public:
     void api_sceneDisplay();
     // scene according to the time or anything more is processed here
     void api_sceneCalculate();
+	void api_kidSet(BaseCode kidCode, const BlockPos& pos);
     void api_kidSet(ObjPtr ptr, const BlockPos& pos);
-    void api_kidMove(BlockPos::Direction dir);
+    void api_kidWalk(const BlockPos& vec);
     void api_kidPick(LiveObjPtr stuff);
-    void api_kidPos(const BlockPos& pos);
     void api_kidJump(BaseCode sceneCode, BlockPos blocksize, BlockPos kidpos);
+	
 
     ~GameLive() {
         if (_scene != nullptr)

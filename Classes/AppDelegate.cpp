@@ -2,6 +2,7 @@
 #include "HelloWorldScene.h"
 #include "GamePrincipal.h"
 #include "GameBase.h"
+#include "GameLive.h"
 #include "GamePaint.h"
 #include "cocostudio/CocoStudio.h"
 #include "ui/CocosGUI.h"
@@ -43,7 +44,7 @@ bool AppDelegate::applicationDidFinishLaunching() {
     director->setDisplayStats(true);
 
     // set FPS. the default value is 1.0/60 if you don't call this
-    director->setAnimationInterval(1.0f / 60);
+    director->setAnimationInterval(GameLive::LOOP_FREQ_MS/1000);
 
     FileUtils::getInstance()->addSearchPath("res");
 
