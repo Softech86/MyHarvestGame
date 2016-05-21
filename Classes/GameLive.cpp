@@ -768,6 +768,57 @@ void GameLive::keyLoop() {
     //cocos2d::Director::getInstance()->getScheduler()->schedule(std::bind(&judgeSch, tmp), tmp, _loopfreq, false, KEY_LOOP_NAME);
 }
 
+bool GameLive::keyPushedOnly(GameKeyPress gkp) {
+	auto keys = GamePrincipal::getLive().keys();
+	//pushed
+	if (keys[gkp] <= _loopdevation)
+		return false;
+	//only
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (i != gkp && keys[i] > _loopdevation)
+			return false;
+	return true;
+}
+
+bool GameLive::keyPushedOnly(vector<GameKeyPress> vgkp) {
+	auto keys = GamePrincipal::getLive().keys();
+	//pushed
+	for (auto gkp = vgkp.begin(); gkp < vgkp.end(); ++gkp)
+		if (keys[*gkp] <= _loopdevation)
+			return false;
+	//only
+	int keyPressedNum = 0;
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (keys[i] > _loopdevation)
+			++keyPressedNum;
+	return ((int)vgkp.size()) == keyPressedNum;
+}
+
+bool GameLive::keyJustPushedOnly(GameKeyPress gkp) {
+	auto keys = GamePrincipal::getLive().keys();
+	//pushed
+	if (keys[gkp] < _loopfreq - _loopdevation || keys[gkp] > _loopfreq + _loopdevation) //考虑可以忽略的延迟时间?
+		return false;
+	//only
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (i != gkp && (keys[i] >= _loopfreq - _loopdevation && keys[i] <= _loopfreq + _loopdevation))
+			return false;
+	return true;
+}
+bool GameLive::keyJustPushedOnly(vector<GameKeyPress> vgkp) {
+	auto keys = GamePrincipal::getLive().keys();
+	//pushed
+	for (auto gkp = vgkp.begin(); gkp < vgkp.end(); ++gkp)
+		if (keys[*gkp] < _loopfreq - _loopdevation || keys[*gkp] > _loopfreq + _loopdevation) //考虑可以忽略的延迟时间?
+			return false;
+	//only
+	int keyPressedNum = 0;
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (keys[i] >= _loopfreq - _loopdevation && keys[i] <= _loopfreq + _loopdevation)
+			++keyPressedNum;
+	return ((int)vgkp.size()) == keyPressedNum;
+}
+
 void GameLive::init() {
     if (_keys == nullptr)
         _keys = new float[KEY_COUNT];

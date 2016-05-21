@@ -230,13 +230,15 @@ public:
 class GameLive {
 public:
     static const int LOOP_FREQ_MS = 20;
+	static const int LOOP_DEVATION_MS = 5;
     static const int KEY_COUNT = 20;
-    static const string KEY_LOOP_NAME;
+	static const string KEY_LOOP_NAME;
 private:
     vector<LiveUIPtr> _UIUp;
     vector<LiveUIPtr> _UIDown;
     GameLiveScene* _scene = nullptr;
     float _loopfreq = LOOP_FREQ_MS / 1000;
+	float _loopdevation = LOOP_DEVATION_MS / 1000;
     bool _close = false;
     float* _keys;
 
@@ -253,6 +255,11 @@ public:
     void keyLoop();
     void judge();
 
+	bool keyPushedOnly(GameKeyPress gkp);
+	bool keyPushedOnly(vector<GameKeyPress> vgkp);
+	bool keyJustPushedOnly(GameKeyPress gkp);
+	bool keyJustPushedOnly(vector<GameKeyPress> vgkp);
+	
     float* keys() {
         return this->_keys;
     }

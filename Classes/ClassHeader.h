@@ -29,6 +29,7 @@ enum KeyName {
 };
 
 enum GameKeyPress {
+	buttonEmpty,
     buttonUp,
     buttonDown,
     buttonLeft,
@@ -37,6 +38,7 @@ enum GameKeyPress {
     buttonB,
     buttonStart,
     buttonSpace,
+	buttonEnd, 
 };
 
 enum GameCommand {
