@@ -25,12 +25,12 @@ GameLiveObject::GameLiveObject(ObjPtr pobj, const BlockPos& margin__)
 }
 
 // 计算绘画的屏幕相对位置
-BlockPos GameLiveObject::paintPos(const BlockPos& viewpoint) {
-    return this->MP() + PxPos(1, 0) * this->zValue() - viewpoint;
+BlockPos GameLiveObject::paintPos() {
+    return this->MP() + PxPos(1, 0) * this->zValue();
 }
 
-LiveCode GameLiveObject::paint(LiveCode father, const BlockPos& viewpoint) {
-    BlockPos pos = this->paintPos(viewpoint);
+LiveCode GameLiveObject::paint(LiveCode father) {
+    BlockPos pos = this->paintPos();
     LiveCode result;
 	if (this->getObj()->isCustomPaint()) {
 		result = this->getObj()->customPaint(father, pos);
@@ -48,33 +48,32 @@ void GameLiveObject::erase(LiveCode father) {
 	this->paintCode() = nullptr;
 }
 
-void GameLiveObject::move(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint, float delaySec) {
-    BlockPos pos = this->paintPos(viewpoint);
+void GameLiveObject::move(const BlockPos& vec, MoveType move, float timeSec, float delaySec) {
+    BlockPos pos = this->paintPos();
 	auto pai = GamePrincipal::getPaint();
 	float now = pai.clock();
 	float delay = 0;
-	if (_movingUntil < now) {
-		delay = 0;
+	if (_movingUntil <= now) {
+		_movingUntil = now;
 	}
-	else {
-		delay = _movingUntil - now + delaySec;
-		_movingUntil += delaySec + timeSec;
-	}
-    pai.objMove(this->paintCode(), pos, pos + vec, move, timeSec, delay);
+	delay = _movingUntil - now + delaySec;
+	_movingUntil += delaySec + timeSec;
+    pai.objMove(this->paintCode(), pos + vec, move, timeSec, delay);
 }
 
-void GameLiveObject::cleanMove(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint, float delaySec) {
-	BlockPos pos = this->paintPos(viewpoint);
+// 这个目前的效果也就是按照最后动作执行完之后的pos来运动而已，就是跳过了中间的一点过程而已
+void GameLiveObject::cleanMove(const BlockPos& vec, MoveType move, float timeSec, float delaySec) {
+	BlockPos pos = this->paintPos();
 	auto pai = GamePrincipal::getPaint();
 	float now = pai.clock();
 	_movingUntil = now + delaySec + timeSec;
-	pai.objMove(this->paintCode(), pos, pos + vec, move, timeSec, delaySec);
+	pai.objMove(this->paintCode(), pos + vec, move, timeSec, delaySec);
 	// TODO
 }
 
-LiveCode GameLiveObject::repaint(LiveCode father, const BlockPos& viewpoint) {
+LiveCode GameLiveObject::repaint(LiveCode father) {
 	erase(father);
-	return paint(father, viewpoint);
+	return paint(father);
 }
 
 GameLiveUI::GameLiveUI(UIPtr ori) {
@@ -409,7 +408,7 @@ void GameLiveScene::add(LiveObjPtr live) {
 	if(parent == nullptr)
 		return;
 
-	LiveCode code = live->paint(parent, this->viewPoint);
+	LiveCode code = live->paint(parent);
 	if(code == nullptr)
 		return;
 	
@@ -437,7 +436,7 @@ void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
 }
 
 void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive) {
-	ptr->move(vec, move, timeSec, this->viewPoint);
+	ptr->move(vec, move, timeSec);
     if(recursive) {
         mapMove(ptr, vec, false);
         for(auto childptr : ptr->outBind())
@@ -449,66 +448,265 @@ void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move,
 
 void GameLiveScene::replace(LiveObjPtr oldptr, ObjPtr newptr) {
     mapReplace(oldptr, newptr);
-	oldptr->repaint(this->getParent(oldptr), this->viewPoint);
+	oldptr->repaint(this->getParent(oldptr));
     // I guess there should be no problem
 }
 
-bool GameLiveScene::DistanceToCentralLine(const BlockPos& windowRelative, const BlockPos& direction, PxPos& outResult) {
-	if (direction == BlockPos::zero)
-		return false;
-	float lineY = this->windowSize.y / 2, lineX = this->windowSize.x / 2;
+GameLiveScene::LineReturn GameLiveScene::DistanceToCentralLine(const PxPos& windowRelative, const PxPos& direction, PxPos& outResult) {
+	if (direction == PxPos::zero)
+		return NEVER;
+	PxPos window = this->windowSize;
+	float lineY = window.y / 2, lineX = window.x / 2;
 	float disY = lineY - windowRelative.y, disX = lineX - windowRelative.x;
-	float timeY, timeX;
-	timeY = disY / direction.y;
-	timeX = disX / direction.x;
+	float timeY = 0, timeX = 0;
+	if (direction.y == 0) {
+		timeX = disX / direction.x;
+		timeY = -1;
+	}
+	else if (direction.x == 0) {
+		timeY = disY / direction.y;
+		timeX = -1;
+	}
+	else {
+		timeY = disY / direction.y;
+		timeX = disX / direction.x;
+	}
 	if (timeY < 0 && timeX < 0)
-		return false;
+		return NEVER;
 	PxPos result = direction;
-	result = result * (timeX < timeY ? timeX : timeY);
+	LineReturn retValue;
+	if ((timeX > 1 || timeX < 0) && (timeY < 0 || timeY > 1)) {
+		return NEVER;
+	}
+	if (timeY < 0) {
+		result = result * timeX;
+		retValue = XDIR;
+	}
+	else if (timeX < 0) {
+		result = result * timeY;
+		retValue = YDIR;
+	}
+	else {
+		result = result * (timeX < timeY ? timeX : timeY);
+		retValue = timeX < timeY ? XDIR : YDIR;
+	}
 	outResult = result;
-	return true;
+	return retValue;
 }
 
-void GameLiveScene::kidViewPoint(const BlockPos& oldpos, const BlockPos& newpos, bool flash) {
+GameLiveScene::LineReturn GameLiveScene::DistanceToTheOtherLine(const PxPos& windowRelative, const PxPos& direction, PxPos& outResult) {
+	if (direction == BlockPos::zero)
+		return NEVER;
+	PxPos window = this->windowSize;
+	float lineY = window.y / 2, lineX = window.x / 2;
+	float disY = lineY - windowRelative.y, disX = lineX - windowRelative.x;
+	float dis, velocity;
+	LineReturn retValue;
+	if (disY == 0) {
+		dis = disX;
+		velocity = direction.x;
+		retValue = XDIR;
+	}
+	else {
+		dis = disY;
+		velocity = direction.y;
+		retValue = YDIR;
+	}
+	if (velocity == 0)
+		return NEVER;
+	float ratio = dis / velocity;
+	if (ratio < 0 || ratio > 1)
+		return NEVER;
+	else {
+		PxPos result = direction;
+		result = result * ratio;
+		outResult = result;
+		return retValue;
+	}
+}
+
+PxPos GameLiveScene::distProcess(const PxPos& dist, LineReturn line, const PxPos& moveAll) {
+	if (line == NEVER) {
+		return PxPos::zero;
+	}
+	else if (line == YDIR) {
+		if (std::abs(dist.x) < std::abs(moveAll.x))
+			return PxPos(dist.x, 0);
+		else
+			return PxPos(moveAll.x, 0);
+	}
+	else if (line == XDIR) {
+		if (std::abs(dist.y) < std::abs(moveAll.y))
+			return PxPos(0, dist.y);
+		else
+			return PxPos(0, moveAll.y);
+	}
+	else
+		return PxPos::zero;
+}
+
+PxPos GameLiveScene::moveBreak(const PxPos& moveAll, const PxPos& move2, const PxPos& direction) {
+	PxPos mr = moveAll - move2;
+	float xt = (float)mr.x / (float)direction.x;
+	float yt = (float)mr.y / (float)direction.y;
+	if (xt < 0 || yt < 0)
+		return mr;
+	if (xt < yt) {
+		return direction * xt;
+	}
+	else {
+		return direction * yt;
+	}
+}
+
+PxPos GameLiveScene::focus(const PxPos& newpos) {
+	PxPos winSze = this->windowSize;
+	PxPos scSze = this->scene->size();
+	PxPos scPad = this->scene->padding();
+	PxPos result;
+	if (newpos.x + winSze.x / 2 > scSze.x + scPad.x) {
+		result.x = (int)(scSze.x + scPad.x - winSze.x);
+	}
+	else if (newpos.x - winSze.x / 2 < scPad.x) {
+		result.x = (int)(scPad.x);
+	}
+	else {
+		result.x = (int)(newpos.x - winSze.x / 2);
+	}
+	if (newpos.y + winSze.y / 2 > scSze.y + scPad.y) {
+		result.y = (int)(scSze.y + scPad.y - winSze.y);
+	}
+	else if (newpos.y - winSze.y / 2 < scPad.y) {
+		result.y = (int)(scPad.y);
+	}
+	else {
+		result.y = (int)(newpos.y - winSze.y / 2);
+	}
+	return result;
+}
+
+void GameLiveScene::kidViewPoint(const PxPos& oldpos, const PxPos& newpos, bool flash) {
 	if(this->kidPtr() == nullptr)
 		return;
-	PxPos dist = PxPos::zero;
-	bool flag = this->DistanceToCentralLine(getWindowRelativePosition(oldpos), newpos - oldpos, dist);
-	BlockPos result;
-	if(newpos.x + this->windowSize.x / 2 > this->scene->size().x + this->scene->padding().x) {
-		result.x = this->scene->size().x + this->scene->padding().x - this->windowSize.x;
-	}
-	else if (newpos.x - this->windowSize.x / 2 < this->scene->padding().x) {
-		result.x = this->scene->padding().x;
-	}
-	else {
-		result.x = newpos.x - this->windowSize.x / 2;
-	}
-	if(newpos.y + this->windowSize.y / 2 > this->scene->size().y + this->scene->padding().y) {
-		result.y = this->scene->size().y + this->scene->padding().y - this->windowSize.y;
-	}
-	else if (newpos.y - this->windowSize.y / 2 < this->scene->padding().y) {
-		result.y = this->scene->padding().y;
-	}
-	else {
-		result.y = newpos.y - this->windowSize.y / 2;
-	}
-
+	PxPos dist1 = PxPos::zero;
+	PxPos centeradd = (PxPos)(this->kidPtr()->size()) * 0.5;
+	PxPos centerold = oldpos + centeradd, centernew = newpos + centeradd;
+	PxPos oldRela = getWindowRelativePosition(centerold);
+	PxPos kidMove = newpos - oldpos;
+	PxPos result = focus(centernew);
+	PxPos cache = this->viewPoint;
+	GameLiveScene::LineReturn flag1 = this->DistanceToCentralLine(oldRela, kidMove, dist1);
+	PxPos moveAll = result - cache;
+	float time1 = PxPos::time(dist1, GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX);
+	float sqrSum = PxPos::distance(PxPos::zero, kidMove);
+	float timeAll = PxPos::time(kidMove, GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX);
 	if (flash)
 		setViewPoint(result);
+	else if (result == cache) {
+		moveViewPoint(result, 0, timeAll);
+		return;
+	}
 	else {
-		float time = PxPos::time(dist, GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX);
-		moveViewPoint(result, GamePrincipal::getBase().kidMoveSpeed, time);
+		if (moveAll.x == 0 || moveAll.y == 0) {
+			float time3;
+			if (kidMove == PxPos::zero)
+				time3 = 0;
+			else if ((int)std::abs(moveAll.x) > 0) {
+				time3 = std::abs(moveAll.x) / std::abs(GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+			}
+			else {
+				time3 = std::abs(moveAll.y) / std::abs(GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+			}
+			moveViewPoint(result, time3, time1);
+
+			if (timeAll - time3 - time1 > 0)
+				moveViewPoint(result, 0, timeAll - time3 - time1);
+		}
+		else {
+			PxPos onelineRela = oldRela + dist1;
+			PxPos dist2 = PxPos::zero;
+			GameLiveScene::LineReturn flag2 = DistanceToTheOtherLine(onelineRela, kidMove, dist2);
+			PxPos move2 = distProcess(dist2, flag2, moveAll);
+			float time2;
+			if (kidMove == PxPos::zero)
+				time2 = 0;
+			else if ((int)std::abs(move2.x) > 0) {
+				time2 = std::abs(move2.x) / std::abs(GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+			}
+			else {
+				time2 = std::abs(move2.y) / std::abs(GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+			}
+
+			moveViewPoint(cache + move2, time2, time1);
+			if (flag2 == NEVER) {
+				if (timeAll - time2 - time1 > 0)
+					moveViewPoint(result, 0, timeAll - time2 - time1);
+				return;
+			}
+			else {
+				float time25 = PxPos::time(dist2, GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX);
+				if (time25 > time2) {
+					moveViewPoint(cache + move2, 0, time25 - time2);
+				}
+				PxPos move3 = moveBreak(moveAll, move2, kidMove);
+				PxPos dist3 = move3;
+				float time3 = PxPos::time(dist3, GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX);
+				moveViewPoint(cache + move2 + move3, time3, 0);
+
+				PxPos move4 = (PxPos)moveAll - move2 - move3;
+				float time4;
+				if (kidMove == PxPos::zero)
+					time4 = 0;
+				else if ((int)std::abs(move4.x) > 0) {
+					time4 = std::abs(move4.x) / std::abs(GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+				}
+				else {
+					time4 = std::abs(move4.y) / std::abs(GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+				}
+				PxPos dist4 = kidMove - dist1 - dist2 - dist3;
+				moveViewPoint(result, time4, 0);
+				float time45 = PxPos::time(dist4, GamePrincipal::getBase().kidMoveSpeed * SMALL_BLOCK_PX);
+				if (time45 > time4)
+					moveViewPoint(result, 0, time45 - time4);
+
+				cocos2d::log("move:");
+				string str = std::to_string(move2.x) + " " + std::to_string(move2.y);
+				cocos2d::log(str.c_str());
+				str = std::to_string(move3.x) + " " + std::to_string(move3.y);
+				cocos2d::log(str.c_str());
+				str = std::to_string(move4.x) + " " + std::to_string(move4.y);
+				cocos2d::log(str.c_str());
+				cocos2d::log("dist:");
+				str = std::to_string(dist1.x) + " " + std::to_string(dist1.y);
+				cocos2d::log(str.c_str());
+				str = std::to_string(dist2.x) + " " + std::to_string(dist2.y);
+				cocos2d::log(str.c_str());
+				str = std::to_string(dist3.x) + " " + std::to_string(dist3.y);
+				cocos2d::log(str.c_str());
+				cocos2d::log("time:");
+				str = std::to_string(time1) + " " + std::to_string(time2) + " " + std::to_string(time3) + " " + std::to_string(time4) + " ";
+				cocos2d::log(str.c_str());
+
+			}
+		}
 	}
 }
 
-void GameLiveScene::setViewPoint(const BlockPos& point) {
-	GamePrincipal::getPaint().objMove(this->rootCode(), -this->viewPoint, -point, MoveType::linear, 0);
+void GameLiveScene::setViewPoint(const PxPos& point) {
+	GamePrincipal::getPaint().objMove(this->rootCode(), -point, MoveType::linear, 0);
+	this->viewPoint = point;
 }
 
-void GameLiveScene::moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond, float delaySec) {
-	float time = BlockPos::time(this->viewPoint, point, speedInBlocksPerSecond);
-	GamePrincipal::getPaint().objMove(this->rootCode(), -this->viewPoint, -point, MoveType::linear, time, delaySec);
+void GameLiveScene::moveViewPoint(const PxPos& point, float timeSec, float delaySec, bool rollback) {
+	if (!rollback && delaySec < 0)
+		delaySec = 0;
+	auto pai = GamePrincipal::getPaint();
+	float now = pai.clock();
+	if (this->viewMovingUntil <= now) {
+		this->viewMovingUntil = now;
+	}
+	pai.objMove(this->rootCode(), -point, MoveType::linear, timeSec, this->viewMovingUntil - now  + delaySec);
+	this->viewMovingUntil += delaySec + timeSec;
 	this->viewPoint = point;
 }
 
@@ -840,8 +1038,11 @@ void GameLive::keyLoop() {
 }
 
 void GameLive::init() {
-    if (_keys == nullptr)
-        _keys = new float[KEY_COUNT];
+	if (_keys == nullptr) {
+		_keys = new float[KEY_COUNT];
+		for (int i = 0; i < KEY_COUNT; i++)
+			_keys[i] = 0.0f;
+	}
     if (_keys == nullptr)
         return;
     this->keySet();

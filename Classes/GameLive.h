@@ -98,13 +98,13 @@ public:
     
 	// 内外位置之和
 	BlockPos MP() { return this->margin() + this->padding(); }
-    BlockPos paintPos(const BlockPos& viewpoint);
+    BlockPos paintPos();
 
-	LiveCode paint(LiveCode father, const BlockPos& viewpoint);
+	LiveCode paint(LiveCode father);
 	void erase(LiveCode father);
-	void move(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint, float delaySec = 0);
-	void cleanMove(const BlockPos& vec, MoveType move, float timeSec, const BlockPos& viewpoint, float delaySec = 0);
-	LiveCode repaint(LiveCode father, const BlockPos& viewpoint);
+	void move(const BlockPos& vec, MoveType move, float timeSec, float delaySec = 0);
+	void cleanMove(const BlockPos& vec, MoveType move, float timeSec, float delaySec = 0);
+	LiveCode repaint(LiveCode father);
 };
 
 class GameLiveUI {
@@ -129,7 +129,8 @@ public:
 class GameLiveScene {
 private:
     ObjPtr scene = nullptr;
-    BlockPos viewPoint;
+    PxPos viewPoint;
+	float viewMovingUntil = 0;
     BlockPos windowSize;
     // the padding of sceneObject represents the size of area we can see in the game
     // and this MazeSize represents the area to be stored and calculated
@@ -181,7 +182,13 @@ private:
 	LiveCode getParent(LiveObjPtr obj);
 
 	BlockPos nextVectorToApproachALine(const BlockPos& lineTarget, const BlockPos& now);
-	bool DistanceToCentralLine(const BlockPos& windowRelative, const BlockPos& direction, PxPos& outResult);
+
+	enum LineReturn { NEVER, XDIR, YDIR };
+	LineReturn DistanceToCentralLine(const PxPos& windowRelative, const PxPos& direction, PxPos& outResult);
+	LineReturn DistanceToTheOtherLine(const PxPos& windowRelative, const PxPos& direction, PxPos& outResult);
+	static PxPos distProcess(const PxPos& dist, LineReturn line, const PxPos& moveAll);
+	// 返回的是双轴移动的距离
+	static PxPos moveBreak(const PxPos& moveAll, const PxPos& move2, const PxPos& direction);
 public:
     GameLiveScene() { }
 
@@ -197,6 +204,7 @@ public:
     LiveObjPtr make(BaseCode ptr, bool scene, GameLiveObject::StickTo stick, const BlockPos& margin, int z = 0, float scale = 1, float alpha = 1);
     LiveObjPtr make(ObjPtr ptr, GameLiveObject::StickTo stick, const BlockPos& margin, int z = 0, float scale = 1, float alpha = 1);
 	
+
     // there are three root nodes in every Live Scene, this method should create it
     void init(const BlockPos& Mazesize);
 	void setScene(BaseCode scenecode);
@@ -209,9 +217,10 @@ public:
     void movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive = true);
     void replace(LiveObjPtr oldptr, ObjPtr newptr);
     
-	void kidViewPoint(const BlockPos& oldpos, const BlockPos& newpos, bool flash);
-	void setViewPoint(const BlockPos& point);
-	void moveViewPoint(const BlockPos& point, float speedInBlocksPerSecond, float delaySec = 0);
+	PxPos focus(const PxPos& newpos);
+	void kidViewPoint(const PxPos& oldpos, const PxPos& newpos, bool flash);
+	void setViewPoint(const PxPos& point);
+	void moveViewPoint(const PxPos& point, float speedInBlocksPerSecond, float delaySec = 0, bool rollback = false);
 	
     void kidSet(ObjPtr child, const BlockPos& margin);
     void kidMove(const BlockPos& vec, MoveType type, float time, bool recursive = true);
@@ -295,6 +304,9 @@ public:
     void api_close();
     
 	GameLiveScene* api_getCurrentScenePtr() { return this->_scene; }
+	LiveCode api_getRootCode() { return this->_scene->rootCode(); }
+	LiveCode api_getKidCode() { return this->_scene->kidCode(); }
+	LiveCode api_getSurroundingCode() { return this->_scene->surroundingCode(); }
 
     void api_sceneInit(BaseCode sceneCode, BlockPos mazeSize);
     void api_sceneDisplay();

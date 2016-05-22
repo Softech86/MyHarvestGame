@@ -60,19 +60,22 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 	return node;
 }
 
-LiveCode GamePaint::objMove(LiveCode object, const PxPos& oldpos, const PxPos& newpos, MoveType type, float timeSec, float delaySec){
-	if (timeSec == 0) {
-		object->setPosition(newpos.toVec2());
+LiveCode GamePaint::objMove(LiveCode object, const PxPos& newpos, MoveType type, float timeSec, float delaySec){
+	if (delaySec > 38) {
+		cocos2d::log("object move target");
 	}
-	else
-		object->runAction(
+	object->runAction(
 		cocos2d::Sequence::create(
 		cocos2d::DelayTime::create(delaySec),
 		cocos2d::MoveTo::create(timeSec, newpos.toVec2()),
 		NULL
 		)
-		);
+	);
 
+
+	cocos2d::log("object move:");
+	string str = std::to_string(newpos.x) + ", " + std::to_string(newpos.y) + " : " + std::to_string(timeSec) + " - " +std::to_string(delaySec);
+	cocos2d::log(str.c_str());
 	return object;
 }
 

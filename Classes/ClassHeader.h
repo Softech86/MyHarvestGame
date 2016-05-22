@@ -182,6 +182,11 @@ public:
         else
             return false;
 	}
+	static float distance(const PxPos& left, const PxPos& right) {
+		float xt = left.x - right.x;
+		float yt = left.y - right.y;
+		return std::sqrt((xt * xt) + (yt * yt));
+	}
 	static float time(const PxPos& left, const PxPos& right, float speedInPxPerSecond) {
 		float xt = left.x - right.x;
 		float yt = left.y - right.y;
@@ -273,6 +278,12 @@ public:
         else
             return false;
     }
+
+	static float distance(const BlockPos& left, const BlockPos& right) {
+		float xt = left.x - right.x;
+		float yt = left.y - right.y;
+		return std::sqrt((xt * xt) + (yt * yt));
+	}
 	
 	static float time(const BlockPos& left, const BlockPos& right, float speedInBlocksPerSecond) {
 		float xt = left.x - right.x;
