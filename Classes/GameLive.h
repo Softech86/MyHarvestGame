@@ -29,7 +29,7 @@ public:
     GameLiveObject(ObjPtr pobj, const BlockPos& margin);
 
     GameLiveObject(BaseCode code, bool isScene)
-    : GameLiveObject(isScene ? GamePrincipal::getBase().getScene(code) : GamePrincipal::getBase().getStuff(code)) {
+    : GameLiveObject(isScene ? BASE.getScene(code) : BASE.getStuff(code)) {
     }
 
     ObjPtr getObj() {
@@ -136,7 +136,7 @@ private:
     // and this MazeSize represents the area to be stored and calculated
     // MazeSize must be larger than the padding size, or I don't know what will happen
     BlockPos mazeSize;
-    bool focusOnKid = true;
+	LiveObjPtr focusOn = nullptr;
     LiveCode codeRoot = nullptr;
     LiveCode codeSurrounding = nullptr;
     LiveCode codeKid = nullptr;
@@ -217,8 +217,15 @@ public:
     void movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive = true);
     void replace(LiveObjPtr oldptr, ObjPtr newptr);
     
+	// TODO
+	void setFocus(const LiveObjPtr ptr, bool breakpause = false);
+	LiveObjPtr getFocus() const { return this->focusOn; }
+	bool focusOnKid() { if (this->kidPtr() == nullptr) return false; else if (this->getFocus() == this->kidPtr()) return true; }
+
+	// 对于一个绝对坐标给出focus视点的绝对坐标
 	PxPos focus(const PxPos& newpos);
-	void kidViewPoint(const PxPos& oldpos, const PxPos& newpos, bool flash);
+	// rollback是一个对于dalyaSec为负数的确认提示
+	void focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, const PxPos& newpos, bool flash);
 	void setViewPoint(const PxPos& point);
 	void moveViewPoint(const PxPos& point, float speedInBlocksPerSecond, float delaySec = 0, bool rollback = false);
 	
@@ -268,7 +275,7 @@ private:
 	float _loopfreq = LOOP_FREQ_MS / 1000;
 	float _loopdevation = LOOP_DEVATION_MS / 1000;
     bool _close = false;
-    float* _keys;
+    float* _keys = nullptr;
 	float timeInGame = 0;
 
 public:
@@ -289,10 +296,10 @@ public:
     }
 
 
-	bool keyPushedOnly(GameKeyPress gkp);
-	bool keyPushedOnly(vector<GameKeyPress> vgkp);
-	bool keyJustPushedOnly(GameKeyPress gkp);
-	bool keyJustPushedOnly(vector<GameKeyPress> vgkp);
+	bool keyPushedOnly(float* keyarray, GameKeyPress gkp);
+	bool keyPushedOnly(float* keyarray, vector<GameKeyPress> vgkp);
+	bool keyJustPushedOnly(float* keyarray, GameKeyPress gkp);
+	bool keyJustPushedOnly(float* keyarray, vector<GameKeyPress> vgkp);
 
 
 	bool api_setWindowSize(const BlockPos& size);
@@ -313,11 +320,13 @@ public:
     // calculate the object on scene according to the time or something more is processed here
     void api_sceneCalculate();
 	void api_sceneICD(BaseCode sceneCodev, const BlockPos& mazeSize, const BlockPos& windowSize);
-	void api_kidSet(BaseCode kidCode, const BlockPos& pos);
-    void api_kidSet(ObjPtr ptr, const BlockPos& pos);
+	void api_kidSet(BaseCode kidCode, const BlockPos& pos, bool focus);
+    void api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus);
     void api_kidWalk(const BlockPos& vec);
     void api_kidPick(LiveObjPtr stuff);
     void api_kidJump(BaseCode sceneCode, BlockPos blocksize, BlockPos kidpos);
+
+	void api_npcWalk(const BlockPos& vec);
 	
 
     ~GameLive() {

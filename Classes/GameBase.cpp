@@ -42,6 +42,8 @@ void GameBase::init() {
     // UI Create
     GameUI::create<StartPageUI>(startPageCode, "startPage", basicMenuTranslator,  &UIData);
 
+	// Event Create
+	GameEvent::create<StartGameEvent>(startGameEventCode, &eventData);
 }
 
 BlockPos BlockPos::dirToBlock(Direction dir) {
@@ -134,6 +136,13 @@ UIPtr GameBase::getUI(BaseCode code) {
         return nullptr;
 }
 
+EventPtr GameBase::getEvent(BaseCode code) {
+	if (code >= 0 && code < (int)eventData.size())
+		return eventData[code];
+	else
+		return nullptr;
+}
+ 
 bool GameEvent::start(LiveObjPtr obj) {
     return true;
 }

@@ -19,19 +19,19 @@ public:
     static void GAMEMAIN();
     static void clear();
 
-    static GameCalculate& getCalculate() {
+	inline static GameCalculate& getCalculate() {
         return *(inst->gclc);
     }
 
-    static GamePaint& getPaint() {
+	inline static GamePaint& getPaint() {
         return *(inst->gpat);
     }
 
-    static GameLive& getLive() {
+    inline static GameLive& getLive() {
         return *(inst->gdyd);
     }
 
-    static GameBase& getBase() {
+	inline static GameBase& getBase() {
         return *(inst->gstd);
     }
 };

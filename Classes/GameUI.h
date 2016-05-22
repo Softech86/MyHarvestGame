@@ -42,7 +42,7 @@ public:
     }
     template<class UIClass> 
     static UIPtr create(BaseCode code, const string& name, BaseCode translator, vector<UIPtr> *container = nullptr) {
-        return create<UIClass>(code, name, GamePrincipal::getBase().getTranslator(translator), container);
+        return create<UIClass>(code, name, BASE.getTranslator(translator), container);
     }
 
 	
@@ -88,6 +88,18 @@ public:
 class BasicMoveTranslator : public GameTranslator {
 public:
 	SHCP_OVERRIDE(GameTranslator, BasicMoveTranslator);
+	virtual GameCommand translate(float* keyarray) override;
+};
+
+class BasicObjectTranslator : public GameTranslator {
+public:
+	SHCP_OVERRIDE(GameTranslator, BasicObjectTranslator);
+	virtual GameCommand translate(float* keyarray) override;
+};
+
+class HandTranslator : public GameTranslator {
+public:
+	SHCP_OVERRIDE(GameTranslator, HandTranslator);
 	virtual GameCommand translate(float* keyarray) override;
 };
 

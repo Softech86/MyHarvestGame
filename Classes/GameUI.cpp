@@ -31,9 +31,6 @@ void GameUI::stop() {
 LiveCode StartPageUI::start() {
     LiveCode result = nullptr; 
 	result = Hello::create();
-    // TODO
-    // add some code here
-    // and assign result to the root node pointer of your paintings
     return result;
 }
 
@@ -45,16 +42,62 @@ JudgeReturn StartPageUI::action(float* keyarray) {
 }
 
 GameCommand BasicMenuTranslator::translate(float* keyarray) {
-    if(keyarray[GameKeyPress::buttonStart]) {
-        //TODO
-    }
+    //TODO
     return GameCommand::emptyCmd;
 }
 
 GameCommand BasicMoveTranslator::translate(float* keyarray) {
+	//TODO
 	return GameCommand::emptyCmd;
 }
 
+GameCommand BasicObjectTranslator::translate(float* keyarray) {
+	if(LIVE.keyPushedOnly(keyarray, GameKeyPress::buttonA))
+		return GameCommand::pick;
+	
+
+	return GameCommand::emptyCmd;
+}
+
+GameCommand HandTranslator::translate(float* keyarray) {
+	if (LIVE.keyPushedOnly(keyarray, GameKeyPress::buttonA))
+		return GameCommand::drop;
+
+	return GameCommand::emptyCmd;
+}
+
+
 bool StartGameEvent::start(LiveObjPtr obj) {
+	LIVE.api_sceneICD(farmSceneCode, BlockPos(100, 100), BlockPos(PxPos(960, 640)));
+	LIVE.api_kidSet(KidCode, BigBlockPos(3, 1), true);
+	LIVE.api_kidWalk(BigBlockPos(3, 18));
+	LIVE.api_kidWalk(BigBlockPos(12, -15));
+	LIVE.api_kidWalk(BigBlockPos(-1, 15));
+	LIVE.api_kidWalk(BigBlockPos(-12, -15));
+
+
+	LIVE.api_kidWalk(BigBlockPos(0, -1));
+	LIVE.api_kidWalk(BigBlockPos(-1, 0));
+	LIVE.api_kidWalk(BigBlockPos(0, -1));
+	LIVE.api_kidWalk(BigBlockPos(-1, 0));
+	LIVE.api_kidWalk(BigBlockPos(0, -1));
+	LIVE.api_kidWalk(BigBlockPos(-1, 0));
+	LIVE.api_kidWalk(BigBlockPos(0, 1));
+	LIVE.api_kidWalk(BigBlockPos(1, 0));
+	LIVE.api_kidWalk(BigBlockPos(2, 0));
+	LIVE.api_kidWalk(BigBlockPos(0, 2));
+	LIVE.api_kidWalk(BigBlockPos(0, 1));
+	LIVE.api_kidWalk(BigBlockPos(1, 0));
+	LIVE.api_kidWalk(BigBlockPos(2, 0));
+	LIVE.api_kidWalk(BigBlockPos(0, 2));
+	LIVE.api_kidWalk(BigBlockPos(0, 1));
+	LIVE.api_kidWalk(BigBlockPos(1, 0));
+	LIVE.api_kidWalk(BigBlockPos(2, 0));
+	LIVE.api_kidWalk(BigBlockPos(0, 2));
+	LIVE.api_kidWalk(BigBlockPos(0, 1));
+	LIVE.api_kidWalk(BigBlockPos(1, 0));
+	LIVE.api_kidWalk(BigBlockPos(7, 0));
+	LIVE.api_kidWalk(BigBlockPos(-18, -11));
 	return true;
 }
+

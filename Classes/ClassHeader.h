@@ -11,6 +11,10 @@
 // 所有的继承类给我把这句话加上
 #define SHCP_OVERRIDE(base, child) virtual inline base* SHCP() override { return new child(*this); }
 
+#define PAINT GamePrincipal::getPaint()
+#define BASE GamePrincipal::getBase()
+#define LIVE GamePrincipal::getLive()
+
 using std::vector;
 using std::string;
 using std::map;
@@ -97,10 +101,15 @@ enum SceneCode {
 enum TransCode {
     basicMenuTranslator,
     basicSceneTranslator,
+	basicObjectTranslator,
 };
 
 enum UICode {
     startPageCode,
+};
+
+enum EventCode {
+	startGameEventCode,
 };
 
 

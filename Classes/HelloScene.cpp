@@ -62,37 +62,7 @@ void Hello::enterBtnOper(Ref*, TouchEventType type) {
 			enterBtn->setTitleColor(Color3B(255, 255, 255));
 		break;
 	case TouchEventType::TOUCH_EVENT_ENDED:
-		GamePrincipal::getLive().api_sceneICD(farmSceneCode, BlockPos(100, 100), BlockPos(PxPos(960, 640)));
-		GamePrincipal::getLive().api_kidSet(KidCode, BigBlockPos(3, 1));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(3, 18));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(12, -15));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(-1, 15));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(-12, -15));
-
-
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, -1));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(-1, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, -1));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(-1, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, -1));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(-1, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, 1));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(1, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(2, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, 2));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, 1));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(1, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(2, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, 2));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, 1));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(1, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(2, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, 2));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(0, 1));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(1, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(7, 0));
-		GamePrincipal::getLive().api_kidWalk(BigBlockPos(-18, -11));
-
+		GamePrincipal::getLive().api_eventStart(startGameEventCode, nullptr);
 		break;
 	case TouchEventType::TOUCH_EVENT_CANCELED:
 		enterBtn->setTitleColor(Color3B(0, 0, 0));

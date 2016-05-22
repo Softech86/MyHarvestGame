@@ -8,9 +8,9 @@ GamePrincipal* GamePrincipal::inst = nullptr;
 
 void GamePrincipal::GAMEMAIN() {
 	GamePrincipal::init();
-	GamePrincipal::getBase().init();
-	GamePrincipal::getPaint().init();
-	GamePrincipal::getLive().init();
+	BASE.init();
+	PAINT.init();
+	LIVE.init();
 }
 
 GamePrincipal& GamePrincipal::init() {

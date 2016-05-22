@@ -267,11 +267,15 @@ public:
 
 class GameEvent {
 private:
-    // TODO
 public:
 
     GameEvent() {
     }
+	
+	template<class EventType>
+	static EventPtr create(BaseCode code, vector<EventPtr> *container = nullptr) {
+		return T_create<EventType, EventPtr>(code, container);
+	}
 
 	SHCP_BASE(GameEvent);
     virtual bool start(LiveObjPtr obj);
@@ -286,6 +290,7 @@ private:
     std::vector<ObjPtr> sceneData;
     std::vector<TransPtr> transData;
     std::vector<UIPtr> UIData;
+	std::vector<EventPtr> eventData;
 public:
 	// 2 big blocks per sec
 	float kidMoveSpeed = 3 * BIG_TO_SMALL;
@@ -294,4 +299,5 @@ public:
     ObjPtr getScene(BaseCode code);
     TransPtr getTranslator(BaseCode code);
     UIPtr getUI(BaseCode code);
+	EventPtr getEvent(BaseCode code);
 };
