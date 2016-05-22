@@ -16,31 +16,33 @@ void GameBase::init() {
 	GameObject::create(GameObject::BigType::kid, KidCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "Kid.csb");
 
     // Scene Create
-	ObjPtr farmsc = GameObject::create(GameObject::BigType::combStuff, farmSceneCode, "farmScene", "", BigBlockPos(20, 20), WalkType::allWalk, &sceneData, "WhiteNode.csb");
-	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BigBlockPos(0, 0));
-	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BigBlockPos(1, 1));
-	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BigBlockPos(2, 2));
-	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BigBlockPos(3, 3));
-	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BigBlockPos(4, 4));
-	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BigBlockPos(5, 5));
-	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BigBlockPos(6, 6));
-	farmsc->children().push_back(getStuff(soilHoedCode));
-	farmsc->childrenPos().push_back(BigBlockPos(7, 7));
+	ObjPtr farmsc = GameObject::create(GameObject::BigType::combStuff, farmSceneCode, "farmScene", "", BlockPos(200, 200), WalkType::allWalk, &sceneData, "Grass.csb");
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BigBlockPos(0, 0));
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BigBlockPos(1, 1));
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BigBlockPos(2, 2));
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BigBlockPos(3, 3));
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BigBlockPos(4, 4));
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BigBlockPos(5, 5));
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BigBlockPos(6, 6));
+	//farmsc->children().push_back(getStuff(soilHoedCode));
+	//farmsc->childrenPos().push_back(BigBlockPos(7, 7));
 
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
-    
+	GameTranslator::create<BasicMoveTranslator>(basicMoveTranslator, &transData);
+
     // Linker Create
     
     // UI Create
     GameUI::create<StartPageUI>(startPageCode, "startPage", basicMenuTranslator,  &UIData);
+	GameUI::create<KidMoveUI>(kidMoveUICode, "kidMoveUI", basicMoveTranslator, &UIData);
 
 	// Event Create
 	GameEvent::create<StartGameEvent>(startGameEventCode, &eventData);
@@ -67,6 +69,51 @@ BlockPos BlockPos::dirToBlock(Direction dir) {
         return BlockPos(1, 1);
     else
         return BlockPos::zero;
+}
+
+BlockPos::Direction BlockPos::cmdToDir(GameCommand cmd) {
+	switch (cmd)
+	{
+	case walkOne:
+	case runOne:
+		return one;
+		break;
+	case walkTwo:
+	case runTwo:
+	case selectDown:
+		return two;
+		break;
+	case walkThree:
+	case runThree:
+		return three;
+		break;
+	case walkFour:
+	case runFour:
+	case selectLeft:
+		return four;
+		break;
+	case walkSix:
+	case runSix:
+	case selectRight:
+		return six;
+		break;
+	case walkSeven:
+	case runSeven:
+		return seven;
+		break;
+	case walkEight:
+	case runEight:
+	case selectUp:
+		return eight;
+		break;
+	case walkNine:
+	case runNine:
+		return nine;
+		break;
+	default:
+		return empty;
+		break;
+	}
 }
 
 void BlockPos::move(Direction dir) {
@@ -167,3 +214,11 @@ GameCommand GameTranslator::translate(float* arrOfKeys) {
     return convert(arrOfKeys);
 }
 
+int GameBase::cmdWalkOrRun(GameCommand cmd) {
+	if (cmd > walkStart && cmd < walkEnd)
+		return WALK;
+	else if (cmd > runStart && cmd < runEnd)
+		return RUN;
+	else
+		return OTHERCMD;
+}

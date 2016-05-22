@@ -15,6 +15,8 @@
 #define BASE GamePrincipal::getBase()
 #define LIVE GamePrincipal::getLive()
 
+const float KEY_CYCLE_SEC = 0.5;
+
 using std::vector;
 using std::string;
 using std::map;
@@ -53,6 +55,7 @@ enum GameKeyPress {
 
 enum GameCommand {
     emptyCmd,
+	walkStart,
     walkOne,
     walkTwo,
     walkThree,
@@ -61,6 +64,8 @@ enum GameCommand {
     walkSeven,
     walkEight,
     walkNine,
+	walkEnd,
+	runStart,
     runOne,
     runTwo,
     runThree,
@@ -69,6 +74,7 @@ enum GameCommand {
     runSeven,
     runEight,
     runNine,
+	runEnd,
 
     pick,
     drop,
@@ -83,6 +89,8 @@ enum GameCommand {
     selectRight,
     confirm,
     cancel,
+	menu,
+	detail,
 };
 
 enum StuffCode {
@@ -100,12 +108,13 @@ enum SceneCode {
 
 enum TransCode {
     basicMenuTranslator,
-    basicSceneTranslator,
+	basicMoveTranslator,
 	basicObjectTranslator,
 };
 
 enum UICode {
     startPageCode,
+	kidMoveUICode,
 };
 
 enum EventCode {
@@ -241,6 +250,7 @@ public:
     void move(Direction dir);
     void moveBack(Direction dir);
     static BlockPos dirToBlock(Direction dir);
+	static Direction cmdToDir(GameCommand cmd);
 
     operator PxPos() const {
         return PxPos(this->x * SMALL_BLOCK_PX, this->y * SMALL_BLOCK_PX);
@@ -287,6 +297,10 @@ public:
         else
             return false;
     }
+
+	BlockPos operator * (const BlockPos& rhs) {
+		return BlockPos(this->x * rhs.x, this->y * rhs.y);
+	}
 
 	static float distance(const BlockPos& left, const BlockPos& right) {
 		float xt = left.x - right.x;

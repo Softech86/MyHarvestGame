@@ -49,7 +49,7 @@ public:
 	SHCP_BASE(GameUI);
     virtual LiveCode start();
     virtual string save();
-    virtual JudgeReturn action(float* keyarray);
+    virtual JudgeReturn action(LiveCode node, float* keyarray);
     virtual void stop();
 
     UIType& type() {
@@ -76,7 +76,16 @@ class StartPageUI : public GameUI {
 public:
 	SHCP_OVERRIDE(GameUI, StartPageUI);
     virtual LiveCode start() override;
-	virtual JudgeReturn action(float* keyarray) override;
+	virtual JudgeReturn action(LiveCode node, float* keyarray) override;
+};
+
+class KidMoveUI : public GameUI {
+private:
+	float _lockUntil = 0;
+public:
+	SHCP_OVERRIDE(GameUI, KidMoveUI);
+	virtual LiveCode start() override;
+	virtual JudgeReturn action(LiveCode node, float* keyarray) override;
 };
 
 class BasicMenuTranslator : public GameTranslator {

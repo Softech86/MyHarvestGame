@@ -292,9 +292,10 @@ private:
     std::vector<UIPtr> UIData;
 	std::vector<EventPtr> eventData;
 public:
-	// 2 big blocks per sec
-	float kidMoveSpeed = 3 * BIG_TO_SMALL;
     void init();
+	const static int WALK = 1, RUN = 2, OTHERCMD = 0;
+	// return 1:walk, 2:run, 0:others
+	static int cmdWalkOrRun(GameCommand cmd);
     ObjPtr getStuff(BaseCode code);
     ObjPtr getScene(BaseCode code);
     TransPtr getTranslator(BaseCode code);

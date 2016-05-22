@@ -602,9 +602,9 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 	PxPos cache = this->viewPoint;
 	GameLiveScene::LineReturn flag1 = this->DistanceToCentralLine(oldRela, kidMove, dist1);
 	PxPos moveAll = result - cache;
-	float time1 = PxPos::time(dist1, BASE.kidMoveSpeed * SMALL_BLOCK_PX);
+	float time1 = PxPos::time(dist1, kidMoveSpeed * SMALL_BLOCK_PX);
 	float sqrSum = PxPos::distance(PxPos::zero, kidMove);
-	float timeAll = PxPos::time(kidMove, BASE.kidMoveSpeed * SMALL_BLOCK_PX);
+	float timeAll = PxPos::time(kidMove, kidMoveSpeed * SMALL_BLOCK_PX);
 	if (flash)
 		setViewPoint(result);
 	else if (result == cache) {
@@ -617,10 +617,10 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 			if (kidMove == PxPos::zero)
 				time3 = 0;
 			else if ((int)std::abs(moveAll.x) > 0) {
-				time3 = std::abs(moveAll.x) / std::abs(BASE.kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+				time3 = std::abs(moveAll.x) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
 			}
 			else {
-				time3 = std::abs(moveAll.y) / std::abs(BASE.kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+				time3 = std::abs(moveAll.y) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 			}
 			moveViewPoint(result, time3, time1);
 
@@ -636,10 +636,10 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 			if (kidMove == PxPos::zero)
 				time2 = 0;
 			else if ((int)std::abs(move2.x) > 0) {
-				time2 = std::abs(move2.x) / std::abs(BASE.kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+				time2 = std::abs(move2.x) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
 			}
 			else {
-				time2 = std::abs(move2.y) / std::abs(BASE.kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+				time2 = std::abs(move2.y) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 			}
 
 			moveViewPoint(cache + move2, time2, time1);
@@ -649,13 +649,13 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 				return;
 			}
 			else {
-				float time25 = PxPos::time(dist2, BASE.kidMoveSpeed * SMALL_BLOCK_PX);
+				float time25 = PxPos::time(dist2, kidMoveSpeed * SMALL_BLOCK_PX);
 				if (time25 > time2) {
 					moveViewPoint(cache + move2, 0, time25 - time2);
 				}
 				PxPos move3 = moveBreak(moveAll, move2, kidMove);
 				PxPos dist3 = move3;
-				float time3 = PxPos::time(dist3, BASE.kidMoveSpeed * SMALL_BLOCK_PX);
+				float time3 = PxPos::time(dist3, kidMoveSpeed * SMALL_BLOCK_PX);
 				moveViewPoint(cache + move2 + move3, time3, 0);
 
 				PxPos move4 = (PxPos)moveAll - move2 - move3;
@@ -663,14 +663,14 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 				if (kidMove == PxPos::zero)
 					time4 = 0;
 				else if ((int)std::abs(move4.x) > 0) {
-					time4 = std::abs(move4.x) / std::abs(BASE.kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+					time4 = std::abs(move4.x) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
 				}
 				else {
-					time4 = std::abs(move4.y) / std::abs(BASE.kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+					time4 = std::abs(move4.y) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 				}
 				PxPos dist4 = kidMove - dist1 - dist2 - dist3;
 				moveViewPoint(result, time4, 0);
-				float time45 = PxPos::time(dist4, BASE.kidMoveSpeed * SMALL_BLOCK_PX);
+				float time45 = PxPos::time(dist4, kidMoveSpeed * SMALL_BLOCK_PX);
 				if (time45 > time4)
 					moveViewPoint(result, 0, time45 - time4);
 
@@ -741,8 +741,10 @@ void GameLiveScene::kidMove(const BlockPos& vec, MoveType type, float time, bool
 }
 
 void GameLiveScene::kidWalk(const BlockPos& vec) {
-	float time = BlockPos::time(vec, BASE.kidMoveSpeed);
-	kidMove(vec, MoveType::linear, time, true);
+	if (vec != BlockPos::zero) {
+		float time = BlockPos::time(vec, kidMoveSpeed);
+		kidMove(vec, MoveType::linear, time, true);
+	}
 }
 
 void GameLiveScene::kidRemove(bool recursive) {
@@ -950,31 +952,31 @@ void GameLive::keySet() {
     el->onKeyPressed = [](cocos2d::EventKeyboard::KeyCode kc, cocos2d::Event * event) {
         switch (kc) {
             case cocos2d::EventKeyboard::KeyCode::KEY_W:
-                LIVE.keys()[GameKeyPress::buttonUp] += LIVE.getLoopFreq();
+                LIVE.press()[GameKeyPress::buttonUp]= true;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_A:
-                LIVE.keys()[GameKeyPress::buttonLeft] += LIVE.getLoopFreq();
+                LIVE.press()[GameKeyPress::buttonLeft] = true;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_S:
-                LIVE.keys()[GameKeyPress::buttonDown] += LIVE.getLoopFreq();
+                LIVE.press()[GameKeyPress::buttonDown] = true;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_D:
-                LIVE.keys()[GameKeyPress::buttonRight] += LIVE.getLoopFreq();
+                LIVE.press()[GameKeyPress::buttonRight] = true;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_J:
-                LIVE.keys()[GameKeyPress::buttonA] += LIVE.getLoopFreq();
+                LIVE.press()[GameKeyPress::buttonA] = true;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_K:
-                LIVE.keys()[GameKeyPress::buttonB] += LIVE.getLoopFreq();
+                LIVE.press()[GameKeyPress::buttonB] = true;
 				break;
 			case cocos2d::EventKeyboard::KeyCode::KEY_L:
-				LIVE.keys()[GameKeyPress::buttonC] += LIVE.getLoopFreq();
+				LIVE.press()[GameKeyPress::buttonC] = true;
 				break;
             case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
-                LIVE.keys()[GameKeyPress::buttonStart] += LIVE.getLoopFreq();
+                LIVE.press()[GameKeyPress::buttonStart] = true;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_SPACE:
-                LIVE.keys()[GameKeyPress::buttonSpace] += LIVE.getLoopFreq();
+                LIVE.press()[GameKeyPress::buttonSpace] = true;
                 break;
             default:
                 break;
@@ -983,31 +985,31 @@ void GameLive::keySet() {
     el->onKeyReleased = [](cocos2d::EventKeyboard::KeyCode kc, cocos2d::Event * event) {
         switch (kc) {
             case cocos2d::EventKeyboard::KeyCode::KEY_W:
-                LIVE.keys()[GameKeyPress::buttonUp] = 0;
+                LIVE.press()[GameKeyPress::buttonUp] = false;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_A:
-                LIVE.keys()[GameKeyPress::buttonLeft] = 0;
+                LIVE.press()[GameKeyPress::buttonLeft] = false;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_S:
-                LIVE.keys()[GameKeyPress::buttonDown] = 0;
+                LIVE.press()[GameKeyPress::buttonDown] = false;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_D:
-                LIVE.keys()[GameKeyPress::buttonRight] = 0;
+                LIVE.press()[GameKeyPress::buttonRight] = false;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_J:
-                LIVE.keys()[GameKeyPress::buttonA] = 0;
+                LIVE.press()[GameKeyPress::buttonA] = false;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_K:
-                LIVE.keys()[GameKeyPress::buttonB] = 0;
+                LIVE.press()[GameKeyPress::buttonB] = false;
 				break;
 			case cocos2d::EventKeyboard::KeyCode::KEY_L:
-				LIVE.keys()[GameKeyPress::buttonC] = 0;
+				LIVE.press()[GameKeyPress::buttonC] = false;
 				break;
             case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
-                LIVE.keys()[GameKeyPress::buttonStart] = 0;
+                LIVE.press()[GameKeyPress::buttonStart] = false;
                 break;
             case cocos2d::EventKeyboard::KeyCode::KEY_SPACE:
-                LIVE.keys()[GameKeyPress::buttonSpace] = 0;
+                LIVE.press()[GameKeyPress::buttonSpace] = false;
                 break;
             default:
                 break;
@@ -1027,19 +1029,29 @@ GameLiveScene::detectMoveReturn GameLiveScene::detectMoveOneObject(LiveObjPtr ob
 }
 
 
+void GameLive::keyAddTime() {
+	for (int i = 0; i < KEY_COUNT; i++) {
+		if (_press[i]) {
+			_keys[i] += _loopfreq;
+		}
+		else {
+			_keys[i] = 0;
+		}
+	}
+}
 
 const string GameLive::KEY_LOOP_NAME = "keyboardLoop";
 
 void GameLive::keyLoop() {
-    auto judgeSch = [](GameLive* ptr, float dt) {
-        if (ptr->_close)
-            cocos2d::Director::getInstance()->getScheduler()->unschedule(KEY_LOOP_NAME, ptr);
-        else
-            ptr->judge();
+    auto judgeSch = [](float dt) {
+		if (LIVE._close)
+            cocos2d::Director::getInstance()->getScheduler()->unschedule(KEY_LOOP_NAME, &LIVE);
+		else {
+			LIVE.keyAddTime();
+			LIVE.judge();
+		}
     };
-    GameLive* tmp = this;
-    // TODO
-    //cocos2d::Director::getInstance()->getScheduler()->schedule(std::bind(&judgeSch, tmp), tmp, _loopfreq, false, KEY_LOOP_NAME);
+	cocos2d::Director::getInstance()->getScheduler()->schedule(judgeSch, &LIVE, _loopfreq, false, KEY_LOOP_NAME);
 }
 
 void GameLive::init() {
@@ -1050,6 +1062,15 @@ void GameLive::init() {
 	}
     if (_keys == nullptr)
         return;
+	if (_press == nullptr) {
+		_press = new bool[KEY_COUNT];
+		for (int i = 0; i < KEY_COUNT; i++)
+			_press[i] = false;
+	}
+	if (_keys == nullptr) {
+		return;
+	}
+
     this->keySet();
     this->enter();
     this->keyLoop();
@@ -1080,6 +1101,34 @@ void GameLive::api_UIStart(UIPtr uip) {
     }
     glu->id() = glu->UI()->start(); // 所以就这样子直接调用了？不知道。
 	PAINT.nodeDisplay(glu->id());
+}
+
+vector<LiveUIPtr>::iterator GameLive::_UIPtrQuery(LiveCode id, GameUI::UIType& out_type) {
+	out_type = GameUI::empty;
+	for (auto lt = this->_UIUp.begin(); lt != this->_UIUp.end(); lt++) {
+		if (*lt != nullptr && (*lt)->id() == id) {
+			out_type = GameUI::up;
+			return lt;
+		}
+	}
+	for (auto lt = this->_UIDown.begin(); lt != this->_UIDown.end(); lt++) {
+		if (*lt != nullptr && (*lt)->id() == id) {
+			out_type = GameUI::down;
+			return lt;
+		}
+	}
+	return this->_UIUp.end();
+}
+
+void GameLive::api_UIStop(LiveCode id) {
+	GameUI::UIType type = GameUI::UIType::empty;
+	auto lt = _UIPtrQuery(id, type);
+	if (type == GameUI::empty)
+		return;
+	else if (type == GameUI::up)
+		this->_UIUp.erase(lt);
+	else if(type == GameUI::down)
+		this->_UIDown.erase(lt);
 }
 
 void GameLive::api_eventStart(BaseCode eveCode, LiveObjPtr obj) {
@@ -1122,13 +1171,23 @@ void GameLive::api_kidSet(BaseCode kidCode, const BlockPos& pos, bool focus) {
 }
 
 void GameLive::api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus) {
-	this->_scene->kidSet(ptr, pos);
-	if (focus)
-		this->_scene->setFocus(this->_scene->kidPtr());
+	if (this->_scene != nullptr) {
+		this->_scene->kidSet(ptr, pos);
+		if (focus)
+			this->_scene->setFocus(this->_scene->kidPtr());
+	}
 }
 
 void GameLive::api_kidWalk(const BlockPos& vec) {
-	this->_scene->kidWalk(vec);
+	if (this->_scene != nullptr) {
+		this->_scene->kidWalk(vec);
+	}
+}
+
+void GameLive::api_kidWalkStep(BlockPos::Direction dir) {
+	if (this->_scene != nullptr) {
+		api_kidWalk(this->_scene->getStepDist(dir));
+	}
 }
 
 void GameLive::judge() {
@@ -1139,7 +1198,8 @@ step_one:
         else {
             EventPtr eve = nullptr;
             LiveUIPtr ptt = _UIUp[i];
-            JudgeReturn jud = ptt->UI()->action(this->_keys);
+			_UIJudgeNow = ptt;
+            JudgeReturn jud = ptt->UI()->action(ptt->id(), this->_keys);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }
@@ -1158,7 +1218,8 @@ step_one:
             } else {
             }
         }
-    }
+	}
+	_UIJudgeNow = nullptr;
 
     //TODO
 
@@ -1168,8 +1229,9 @@ step_three:
             continue;
         else {
             EventPtr eve = nullptr;
-            LiveUIPtr ptt = _UIUp[i];
-            JudgeReturn jud = ptt->UI()->action(this->_keys);
+			LiveUIPtr ptt = _UIUp[i];
+			_UIJudgeNow = ptt;
+			JudgeReturn jud = ptt->UI()->action(ptt->id(), this->_keys);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }
@@ -1190,8 +1252,8 @@ step_three:
             } else {
             }
         }
-    }
-
+	}
+	_UIJudgeNow = nullptr;
 }
 
 
@@ -1206,7 +1268,6 @@ bool GameLive::keyPushedOnly(float* keyarray, GameKeyPress gkp) {
 			return false;
 	return true;
 }
-
 bool GameLive::keyPushedOnly(float* keyarray, vector<GameKeyPress> vgkp) {
 	auto keys = keyarray;
 	//pushed
@@ -1246,3 +1307,34 @@ bool GameLive::keyJustPushedOnly(float* keyarray, vector<GameKeyPress> vgkp) {
 	return ((int)vgkp.size()) == keyPressedNum;
 }
 
+bool GameLive::_keyCyclePushed(float presstime, float cycleSec) {
+	float time = std::fmod(presstime, cycleSec);
+	if (time > _loopfreq - _loopdevation && time < _loopfreq + _loopdevation)
+		return true;
+	else
+		return false;
+}
+
+bool GameLive::keyCyclePushedOnly(float* keys, GameKeyPress gkp, float cycleSec) {
+	//pushed
+	if (!_keyCyclePushed(keys[gkp], cycleSec))
+		return false;
+	//only
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (i != gkp && _keyCyclePushed(keys[i], cycleSec))
+			return false;
+	return true;
+}
+
+bool GameLive::keyCyclePushedOnly(float* keys, vector<GameKeyPress> vgkp, float cycleSec) {
+	//pushed
+	for (auto gkp : vgkp)
+		if (!_keyCyclePushed(keys[gkp], cycleSec))
+			return false;
+	//auto
+	int keypressedcnt = 0;
+	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+		if (_keyCyclePushed(keys[i], cycleSec))
+			keypressedcnt++;
+	return ((int)vgkp.size()) == keypressedcnt;
+}

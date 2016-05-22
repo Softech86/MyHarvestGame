@@ -8,6 +8,8 @@
 USING_NS_CC;
 
 using namespace cocostudio::timeline;
+using namespace cocostudio;
+using namespace cocos2d::ui;
 
 Scene* Hello::createScene()
 {
@@ -53,19 +55,19 @@ bool Hello::init()
 void Hello::enterBtnOper(Ref*, TouchEventType type) {
 	switch (type) {
 	case TouchEventType::TOUCH_EVENT_BEGAN:
-		enterBtn->setTitleColor(Color3B(255, 255, 255));
+		setHighlight(0);
 		break;
 	case TouchEventType::TOUCH_EVENT_MOVED:
 		if (!enterBtn->isHighlighted())
-			enterBtn->setTitleColor(Color3B(0, 0, 0));
+			unsetHighlight();
 		else
-			enterBtn->setTitleColor(Color3B(255, 255, 255));
+			setHighlight(0);
 		break;
 	case TouchEventType::TOUCH_EVENT_ENDED:
-		GamePrincipal::getLive().api_eventStart(startGameEventCode, nullptr);
+		LIVE.api_eventStart(startGameEventCode, nullptr);
 		break;
 	case TouchEventType::TOUCH_EVENT_CANCELED:
-		enterBtn->setTitleColor(Color3B(0, 0, 0));
+		unsetHighlight();
 		break;
 	}
 }
@@ -73,19 +75,67 @@ void Hello::enterBtnOper(Ref*, TouchEventType type) {
 void Hello::exitBtnOper(Ref*, TouchEventType type) {
 	switch (type) {
 	case TouchEventType::TOUCH_EVENT_BEGAN:
-		exitBtn->setTitleColor(Color3B(255, 255, 255));
+		setHighlight(1);
 		break;
 	case TouchEventType::TOUCH_EVENT_MOVED:
 		if (!exitBtn->isHighlighted())
-			exitBtn->setTitleColor(Color3B(0, 0, 0));
+			unsetHighlight();
 		else
-			exitBtn->setTitleColor(Color3B(255, 255, 255));
+			setHighlight(1);
 		break;
 	case TouchEventType::TOUCH_EVENT_ENDED:
 		Director::getInstance()->end();
 		break;
 	case TouchEventType::TOUCH_EVENT_CANCELED:
-		exitBtn->setTitleColor(Color3B(0, 0, 0));
+		unsetHighlight();
+		break;
+	}
+}
+
+void Hello::setHighlight(int selected) {
+	unsetHighlight();
+	if (selected == 0)
+		enterBtn->setTitleColor(Color3B(255, 255, 255));
+	else if (selected == 1)
+		exitBtn->setTitleColor(Color3B(255, 255, 255));
+}
+
+void Hello::unsetHighlight() {
+	enterBtn->setTitleColor(Color3B(0, 0, 0));
+	exitBtn->setTitleColor(Color3B(0, 0, 0));
+}
+
+void Hello::comeOn(LiveCode node, GameCommand cmd) {
+	if (cmd == emptyCmd)
+		return;
+	if (cmd == confirm) {
+		switch (selectedItem)
+		{
+		case 0:
+			LIVE.api_eventStart(startGameEventCode, nullptr);
+			break;
+		case 1:
+			Director::getInstance()->end();
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (cmd == selectUp && selectedItem > 0)
+		this->selectedItem--;
+	else if (cmd == selectDown && selectedItem < 1)
+		this->selectedItem++;
+
+	switch (selectedItem)
+	{
+	case 0:
+		setHighlight(0);
+		break;
+	case 1:
+		setHighlight(1);
+		break;
+	default:
 		break;
 	}
 }

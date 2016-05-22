@@ -145,7 +145,14 @@ private:
 	vector<LiveObjPtr> nodeCache;
 	LiveObjPtr liveHand = nullptr;
 	int NumHand = 0;
-    
+
+	// 3 big blocks per sec
+	float kidMoveSpeed = 3 * BIG_TO_SMALL;
+	// 1 small block per step
+	BlockType kidStep = 1;
+	// run velocity is twice of walk velocity
+	float kidRunComparedToMove = 2.0f;
+
     LiveDot* blockMap = nullptr;
     TransPtr defaultTranslator = nullptr;
 
@@ -204,6 +211,18 @@ public:
     LiveObjPtr make(BaseCode ptr, bool scene, GameLiveObject::StickTo stick, const BlockPos& margin, int z = 0, float scale = 1, float alpha = 1);
     LiveObjPtr make(ObjPtr ptr, GameLiveObject::StickTo stick, const BlockPos& margin, int z = 0, float scale = 1, float alpha = 1);
 	
+	
+	BlockPos getStepDist(BlockPos::Direction dir) const {
+		BlockPos move = BlockPos(kidStep, kidStep);
+		BlockPos tmp = BlockPos::dirToBlock(dir);
+		return tmp * move;
+	}
+	float getKidWalkTime(const BlockPos& dist) const {
+		return BlockPos::time(dist, kidMoveSpeed);
+	}
+	float getKidRunTime(const BlockPos& dist) const {
+		return getKidWalkTime(dist) / kidRunComparedToMove;
+	}
 
     // there are three root nodes in every Live Scene, this method should create it
     void init(const BlockPos& Mazesize);
@@ -272,11 +291,15 @@ private:
     vector<LiveUIPtr> _UIUp;
     vector<LiveUIPtr> _UIDown;
 	GameLiveScene* _scene = nullptr;
-	float _loopfreq = LOOP_FREQ_MS / 1000;
-	float _loopdevation = LOOP_DEVATION_MS / 1000;
+	float _loopfreq = (float)LOOP_FREQ_MS / 1000;
+	float _loopdevation = (float)LOOP_DEVATION_MS / 1000;
     bool _close = false;
+	bool* _press = nullptr;
     float* _keys = nullptr;
-	float timeInGame = 0;
+	float _timeInGame = 0;
+
+	LiveObjPtr _objectJudgeNow = nullptr; // TODO
+	LiveUIPtr _UIJudgeNow = nullptr;
 
 public:
 
@@ -291,16 +314,24 @@ public:
     void keyLoop();
     void judge();
 
+	bool* press() {
+		return this->_press;
+	}
     float* keys() {
         return this->_keys;
     }
+	void keyAddTime();
 
-
+private:
+	bool _keyCyclePushed(float time, float cycleSec);
+	vector<LiveUIPtr>::iterator _UIPtrQuery(LiveCode id, GameUI::UIType& out_type);
+public:
 	bool keyPushedOnly(float* keyarray, GameKeyPress gkp);
 	bool keyPushedOnly(float* keyarray, vector<GameKeyPress> vgkp);
 	bool keyJustPushedOnly(float* keyarray, GameKeyPress gkp);
 	bool keyJustPushedOnly(float* keyarray, vector<GameKeyPress> vgkp);
-
+	bool keyCyclePushedOnly(float* keyarray, GameKeyPress gkp, float cycleSec);
+	bool keyCyclePushedOnly(float* keyarray, vector<GameKeyPress> vgkp, float cycleSec);
 
 	bool api_setWindowSize(const BlockPos& size);
     void api_UIStart(BaseCode uicode);
@@ -309,11 +340,25 @@ public:
     void api_eventStart(BaseCode eveCode, LiveObjPtr obj);
     void api_eventStart(EventPtr eve, LiveObjPtr obj);
     void api_close();
-    
-	GameLiveScene* api_getCurrentScenePtr() { return this->_scene; }
+
+	bool api_hasScene() { return this->_scene != nullptr; }
+	GameLiveScene* api_getScenePtr() { return this->_scene; }
 	LiveCode api_getRootCode() { return this->_scene->rootCode(); }
 	LiveCode api_getKidCode() { return this->_scene->kidCode(); }
 	LiveCode api_getSurroundingCode() { return this->_scene->surroundingCode(); }
+	LiveUIPtr api_getUIPtrJudgedNow() { return this->_UIJudgeNow; };
+	LiveCode api_getUICodeJudgedNow() {
+		if (this->_UIJudgeNow != nullptr)
+			return this->_UIJudgeNow->id();
+		else
+			return nullptr; 
+	}
+
+	void api_stopUIJudgedNow() {
+		// 这里不关心null问题
+		LiveCode tmp = api_getUICodeJudgedNow();
+		api_UIStop(tmp);
+	}
 
     void api_sceneInit(BaseCode sceneCode, BlockPos mazeSize);
     void api_sceneDisplay();
@@ -323,6 +368,7 @@ public:
 	void api_kidSet(BaseCode kidCode, const BlockPos& pos, bool focus);
     void api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus);
     void api_kidWalk(const BlockPos& vec);
+	void api_kidWalkStep(BlockPos::Direction dir);
     void api_kidPick(LiveObjPtr stuff);
     void api_kidJump(BaseCode sceneCode, BlockPos blocksize, BlockPos kidpos);
 
@@ -334,5 +380,7 @@ public:
             delete _scene;
         if (_keys != nullptr)
             delete _keys;
+		if (_press != nullptr)
+			delete _press;
     }
 };
