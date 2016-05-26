@@ -76,13 +76,32 @@ JudgeReturn KidMoveUI::action(LiveCode node, float* keyarray) {
 }
 
 LiveCode ToolUI::start() {
-	//TODO
-	return GameUI::start();
+	LiveCode paper = PAINT.nodeNew();
+	toolPaint(paper);
+	return paper;
 }
 
-void ToolUI::toolPaint() {
-	if (tool > StuffCode::toolStart && tool < StuffCode::toolEnd) {
-		//TODO
+void ToolUI::toolPaint(LiveCode paper) {
+	PAINT.nodeRemoveAllChildren(paper);
+	PxPos sceneSize = LIVE.api_getSceneSize();
+	PxPos hudSize = PxPos(80, 80);
+	if (sceneSize > hudSize) {
+		LiveCode back = PAINT.objAddToObj(paper, "ToolUIBack.csb", PxPos::zero);
+		if (tool > StuffCode::toolStart && tool < StuffCode::toolEnd) {
+			switch (tool)
+			{
+			case toolHoe:
+				PAINT.objAddToObj(back, "Hoe.csb", PxPos::zero);
+				break;
+			case toolWaterCan:
+				PAINT.objAddToObj(back, "WaterCan.csb", PxPos::zero);
+				break;
+			default:
+				break;
+			}
+			//TODO 枚举
+		}
+		paper->setPosition(sceneSize.x - 80, 0);
 	}
 }
 
@@ -97,15 +116,35 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray) {
 				if (LIVE.api_getActionLock(kid) > now)
 					return JudgeReturn::judgeEnd;
 				else
-					LIVE.api_setActionLock(kid, now + 0.5);
+					LIVE.api_setActionLock(kid, now + BASE.USE_TOOL_TIME);
 
 				// 枚举各种工具
 				if (tool == toolHoe)
 					LIVE.api_setCommandCache(useHoe);
+				else if (tool = toolWaterCan)
+					LIVE.api_setCommandCache(useWaterCan);
 				// TODO 未完的枚举
 
 				return judgeNextLayer;
 			}
+		}
+		else if (gcmd == switchTool) {
+			// 动作锁的检测
+			float now = PAINT.clock();
+			LiveObjPtr kid = LIVE.api_kidGet();
+			if (kid != nullptr) {
+				if (LIVE.api_getActionLock(kid) > now)
+					return JudgeReturn::judgeEnd;
+				else
+					LIVE.api_setActionLock(kid, now + BASE.USE_TOOL_TIME);
+
+				if (tool + 1 == toolEnd)
+					tool = toolStart;
+				else
+					tool++;
+				toolPaint(node);
+			}
+			return judgeEnd;
 		}
 		else
 			return judgeNextObject;
@@ -190,10 +229,13 @@ GameCommand BasicMoveTranslator::translate(float* keyarray) {
 }
 
 GameCommand BasicObjectTranslator::translate(float* keyarray) {
+	// 我迟早得写一个keyNotPush的判定啊
 	if(LIVE.keyPushed(keyarray, GameKeyPress::buttonA))
-		return GameCommand::pick;
+		return GameCommand::pickNLook;
 	if (LIVE.keyPushed(keyarray, GameKeyPress::buttonB))
 		return GameCommand::useTool;
+	if (LIVE.keyPushed(keyarray, GameKeyPress::buttonC))
+		return GameCommand::switchTool;
 	//TODO
 
 	return GameCommand::emptyCmd;
@@ -212,7 +254,17 @@ LinkerReturn SoilLinker::link(GameCommand gcmd) {
 	result.eve = nullptr;
 	result.judge = judgeNextObject;
 	if (gcmd == useHoe && LIVE.api_getObjectBaseCodeJudgedNow() == soilOriginCode) {
-		LIVE.api_replaceObject(LIVE.api_getObjectPtrJudgedNow(), BASE.getStuff(soilHoedCode));
+		auto sche = [](float dt) {
+			LIVE.api_replaceObject(LIVE.api_getObjectPtrJudgedNow(), BASE.getStuff(soilHoedCode));
+		};
+		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilHoe");
+		result.judge = judgeEnd;
+	}
+	else if (gcmd == useWaterCan && LIVE.api_getObjectBaseCodeJudgedNow() == soilHoedCode) {
+		auto sche = [](float dt) {
+			LIVE.api_replaceObject(LIVE.api_getObjectPtrJudgedNow(), BASE.getStuff(soilWateredCode));
+		};
+		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilWater");
 		result.judge = judgeEnd;
 	}
 	//TODO weiwancheg
@@ -252,7 +304,7 @@ bool StartGameEvent::start(LiveObjPtr obj) {
 	LIVE.api_kidWalk(BigBlockPos(7, 0));
 	LIVE.api_kidWalk(BigBlockPos(-18, -11));*/
 
-	LIVE.api_stopUIJudgedNow();
+	LIVE.api_UIStop(startPageCode);
 	LIVE.api_UIStart(kidMoveUICode);
 	LIVE.api_UIStart(toolUICode);
 	return true;

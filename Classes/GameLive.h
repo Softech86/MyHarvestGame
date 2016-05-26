@@ -50,7 +50,7 @@ private:
 	//	rangeArea.x is the length in x from center
 	//	rangeArea.y is the length in y from center
 	//	the range area size in total will be (2x, 2y)
-	BlockPos rangeArea = BigBlockPos(1, 1);
+	BlockPos rangeArea = BlockPos(4, 1);
 
 public:
     GameLiveObject() {
@@ -208,7 +208,7 @@ private:
 	static int liveDotInsert(LiveDot &ld, LiveObjPtr obj);
 
 	BlockPos validize(const BlockPos& input);
-	void rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPtr, int>& out_objects);
+	void rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPtr, int>& out_objects, LiveObjPtr itself);
 	static void sortObjects(const BlockPos& kidPos, BlockPos::Direction kidDir, map<LiveObjPtr, int>& objects, vector<LiveObjPtr> &outResult);
 	void kidRangeObjects(vector<LiveObjPtr>& out_result);
 
@@ -311,9 +311,9 @@ public:
     void remove(LiveObjPtr ptr, bool recursive = true);
     void movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive = true);
     void replace(LiveObjPtr oldptr, ObjPtr newptr);
-	void changePicture(LiveObjPtr ptr, const string& picture); //TODO
+	void changePicture(LiveObjPtr ptr, const string& picture);
 
-    // TODO
+    // TODO breakpause
     void setFocus(const LiveObjPtr ptr, bool breakpause = false);
 
     LiveObjPtr getFocus() const {
@@ -340,9 +340,6 @@ public:
     void kidReplace(ObjPtr newkid);
 
 	void kidAddObject(ObjPtr obj, const BlockPos& marginRelative);
-
-    //TODO
-    void delayTime(std::function<void() > func, float delaySec);
 
     void switchFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin, bool recursive = false);
     void switchFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin, bool recursive = false);
@@ -393,6 +390,7 @@ private:
     LiveUIPtr _UIJudgeNow = nullptr;
 
 public:
+	bool noPressStillJudge = false;
 
     GameLive() {
     }
@@ -415,11 +413,12 @@ public:
     float* keys() {
         return this->_keys;
     }
-    void keyAddTime();
+    int keyAddTime();
 
 private:
     bool _keyCyclePushed(float time, float cycleSec);
     vector<LiveUIPtr>::iterator _UIPtrQuery(LiveCode id, GameUI::UIType& out_type);
+	vector<LiveUIPtr>::iterator _UIPtrQuery(BaseCode code, GameUI::UIType& out_type);
 public:
     bool keyPushedOnly(float* keyarray, GameKeyPress gkp);
     bool keyPushedOnly(float* keyarray, vector<GameKeyPress> vgkp);
@@ -432,10 +431,12 @@ public:
 
 	float api_getLoopFreq() { return this->_loopfreq; }
 	
-    bool api_setWindowSize(const BlockPos& size);
+	BlockPos api_getSceneSize() { if (this->_scene) return this->_scene->windowSize; else return BlockPos::zero; }
+    bool api_setSceneSize(const BlockPos& size);
     void api_UIStart(BaseCode uicode);
     void api_UIStart(UIPtr uiptr);
-    void api_UIStop(LiveCode id);
+	void api_UIStop(LiveCode id);
+	void api_UIStop(BaseCode code);
     void api_eventStart(BaseCode eveCode, LiveObjPtr obj);
     void api_eventStart(EventPtr eve, LiveObjPtr obj);
     void api_close();
@@ -526,12 +527,16 @@ public:
 
 	void api_addObject(BaseCode code, const BlockPos& margin);
 	void api_replaceObject(LiveObjPtr obj, ObjPtr ptr);
+	void api_changePicture(LiveObjPtr obj, const string& newcsb);
 
-    void api_npcWalk(LiveObjPtr npc, const BlockPos& vec);
+    void api_npcWalk(LiveObjPtr npc, const BlockPos& vec); //TODO
+
+	static void api_delayTime(std::function<void(float)> func, float delaySec, const string& key);
+	static void api_undelay(const string &key);
 
 	float api_getActionLock(LiveObjPtr obj) { return obj->getActionLock(); }
 	void api_setActionLock(LiveObjPtr obj, float lock) { obj->setActionLock(lock); }
-	void api_addActionLock(LiveObjPtr obj, float lock) { obj->setActionLock(obj->getActionLock() + lock); }
+	void api_autoAddActionLock(LiveObjPtr obj, float lockAdd);
 
     ~GameLive() {
         if (_scene != nullptr)

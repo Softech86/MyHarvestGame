@@ -167,7 +167,7 @@ void GameLiveObject::getRange(BlockPos& out_start, BlockPos& out_size) {
 		case BlockPos::four:
 		case BlockPos::six:
 		case BlockPos::seven:
-			area = rangeArea * BlockPos(2, 2);
+			area = rangeArea;
 			break;
 		case BlockPos::empty:
 		case BlockPos::five:
@@ -176,10 +176,12 @@ void GameLiveObject::getRange(BlockPos& out_start, BlockPos& out_size) {
 		case BlockPos::eight:
 		case BlockPos::nine:
 		default:
-			area = rangeArea.flip() * BlockPos(2, 2);
+			area = rangeArea.flip();
 			break;
 		}
-		BlockPos::directionAreaSplit(start, area, kidfacing, 2, out_start, out_size);
+		start -= area;
+		area = area * BlockPos(2, 2);
+		BlockPos::directionAreaSplit(start, area, kidfacing, 3, out_start, out_size);
 	}
 	else if (this->rangeType == zeroRelative) {
 		out_start = rangeCenter - rangeArea;
@@ -229,7 +231,7 @@ inline bool useCache(std::list<RangeCache>& cache, const std::list<RangeCache>::
 	return true;
 }
 
-void GameLiveScene::rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPtr, int>& out_objects) {
+void GameLiveScene::rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPtr, int>& out_objects, LiveObjPtr itself) {
 	// 因为这里不需要再切分所以validize是没有问题的，有待切分的地方用validize可是会失真的
 	start = validize(start);
 	BlockPos end = validize(start + size);
@@ -243,14 +245,20 @@ void GameLiveScene::rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPt
 			if (ld == nullptr)
 				continue;
 			else {
+				for (int i = (int)ld->size() - 1; i > -1; i--){
+					// 含有自己的点一律不统计
+					if ((*ld)[i] == itself)
+						goto step_break_two;
+				}
 				for (int i = 0; i < (int)ld->size(); i++){
 					LiveObjPtr ptr = (*ld)[i];
-					if (ptr != this->liveKid && ptr != this->liveScene) {
+					if (ptr != this->liveScene) {
 						if (useCache(cache, endlt, ptr, i, 5)) {
 							auto mapfind = out_objects.find(ptr);
 							if (mapfind == out_objects.end()){
 								auto pa = std::pair<LiveObjPtr, int>(ptr, i);
 								out_objects.insert(pa);
+								cocos2d::log((std::to_string(ix) + ", " + std::to_string(iy) + ": " + ptr->getObj()->name()).c_str());
 							}
 							else
 								if (mapfind->second < i)
@@ -259,6 +267,8 @@ void GameLiveScene::rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPt
 					}
 				}
 			}
+		step_break_two:
+			;
 		}
 	}
 }
@@ -276,7 +286,7 @@ void GameLiveScene::kidRangeObjects(vector<LiveObjPtr>& out_result) {
 	BlockPos start, size;
 	this->liveKid->getRange(start, size);
 	map<LiveObjPtr, int> objects;
-	rangeGetObjects(start, size, objects);
+	rangeGetObjects(start, size, objects, this->liveKid);
 	sortObjects(this->liveKid->MPC(), this->liveKid->getFace(), objects, out_result);
 }
 
@@ -1041,6 +1051,14 @@ void GameLiveScene::kidReplace(ObjPtr newkid) {
 	}
 }
 
+void GameLiveScene::kidAddObject(ObjPtr obj, const BlockPos& marginRelative) {
+	if (kidPtr()) {
+		BlockPos kidpos = kidPtr()->MP();
+		LiveObjPtr live = add(obj, marginRelative + kidpos);
+		addBind(kidPtr(), live);
+	}
+}
+
 void GameLiveScene::switchFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin, bool recursive) {
 	remove(obj, recursive);
 	obj->margin() = margin;
@@ -1209,6 +1227,24 @@ void GameLive::keySet() {
 			case cocos2d::EventKeyboard::KeyCode::KEY_L:
 				LIVE.press()[GameKeyPress::buttonC] = true;
 				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_U:
+				LIVE.press()[GameKeyPress::buttonU] = true;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_I:
+				LIVE.press()[GameKeyPress::buttonI] = true;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_O:
+				LIVE.press()[GameKeyPress::buttonO] = true;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_P:
+				LIVE.press()[GameKeyPress::buttonP] = true;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_N:
+				LIVE.press()[GameKeyPress::buttonN] = true;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_M:
+				LIVE.press()[GameKeyPress::buttonM] = true;
+				break;
             case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
                 LIVE.press()[GameKeyPress::buttonStart] = true;
                 break;
@@ -1242,6 +1278,24 @@ void GameLive::keySet() {
 			case cocos2d::EventKeyboard::KeyCode::KEY_L:
 				LIVE.press()[GameKeyPress::buttonC] = false;
 				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_U:
+				LIVE.press()[GameKeyPress::buttonU] = false;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_I:
+				LIVE.press()[GameKeyPress::buttonI] = false;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_O:
+				LIVE.press()[GameKeyPress::buttonO] = false;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_P:
+				LIVE.press()[GameKeyPress::buttonP] = false;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_N:
+				LIVE.press()[GameKeyPress::buttonN] = false;
+				break;
+			case cocos2d::EventKeyboard::KeyCode::KEY_M:
+				LIVE.press()[GameKeyPress::buttonM] = false;
+				break;
             case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
                 LIVE.press()[GameKeyPress::buttonStart] = false;
                 break;
@@ -1266,15 +1320,18 @@ GameLiveScene::detectMoveReturn GameLiveScene::detectMoveOneObject(LiveObjPtr ob
 }
 
 
-void GameLive::keyAddTime() {
+int GameLive::keyAddTime() {
+	int cnt = 0;
 	for (int i = 0; i < KEY_COUNT; i++) {
 		if (_press[i]) {
 			_keys[i] += _loopfreq;
+			cnt++;
 		}
 		else {
 			_keys[i] = 0;
 		}
 	}
+	return cnt;
 }
 
 const string GameLive::KEY_LOOP_NAME = "keyboardLoop";
@@ -1284,8 +1341,9 @@ void GameLive::keyLoop() {
 		if (LIVE._close)
             cocos2d::Director::getInstance()->getScheduler()->unschedule(KEY_LOOP_NAME, &LIVE);
 		else {
-			LIVE.keyAddTime();
-			LIVE.judge();
+			int keycnt = LIVE.keyAddTime();
+			if (LIVE.noPressStillJudge || keycnt)
+				LIVE.judge();
 		}
     };
 	cocos2d::Director::getInstance()->getScheduler()->schedule(judgeSch, &LIVE, _loopfreq, false, KEY_LOOP_NAME);
@@ -1313,7 +1371,7 @@ void GameLive::init() {
     this->keyLoop();
 }
 
-bool GameLive::api_setWindowSize(const BlockPos& size) {
+bool GameLive::api_setSceneSize(const BlockPos& size) {
 	if (this->_scene == nullptr)
 		return false;
 	else {
@@ -1357,10 +1415,32 @@ vector<LiveUIPtr>::iterator GameLive::_UIPtrQuery(LiveCode id, GameUI::UIType& o
 	return this->_UIUp.end();
 }
 
+vector<LiveUIPtr>::iterator GameLive::_UIPtrQuery(BaseCode code, GameUI::UIType& out_type) {
+	out_type = GameUI::empty;
+	UIPtr uip = BASE.getUI(code);
+	if (uip->type() == GameUI::up) {
+		for (auto lt = this->_UIUp.begin(); lt != this->_UIUp.end(); lt++) {
+			if (*lt != nullptr && (*lt)->UI()->code() == code) {
+				out_type = GameUI::up;
+				return lt;
+			}
+		}
+	}
+	else if (uip->type() == GameUI::down) {
+		for (auto lt = this->_UIDown.begin(); lt != this->_UIDown.end(); lt++) {
+			if (*lt != nullptr && (*lt)->UI()->code() == code) {
+				out_type = GameUI::down;
+				return lt;
+			}
+		}
+	}
+	return this->_UIUp.end();
+}
+
 void GameLive::api_UIStop(LiveCode id) {
 	GameUI::UIType type = GameUI::UIType::empty;
 	auto lt = _UIPtrQuery(id, type);
-	if (*lt != nullptr){
+	if (type != GameUI::empty && *lt != nullptr){
 		(*lt)->UI()->stop();
 		PAINT.objRemove((*lt)->id(), PAINT.mainsc);
 	}
@@ -1371,6 +1451,22 @@ void GameLive::api_UIStop(LiveCode id) {
 	else if(type == GameUI::down)
 		this->_UIDown.erase(lt);
 }
+
+void GameLive::api_UIStop(BaseCode id) {
+	GameUI::UIType type = GameUI::UIType::empty;
+	auto lt = _UIPtrQuery(id, type);
+	if (type != GameUI::empty && *lt != nullptr){
+		(*lt)->UI()->stop();
+		PAINT.objRemove((*lt)->id(), PAINT.mainsc);
+	}
+	if (type == GameUI::empty)
+		return;
+	else if (type == GameUI::up)
+		this->_UIUp.erase(lt);
+	else if (type == GameUI::down)
+		this->_UIDown.erase(lt);
+}
+
 
 void GameLive::api_eventStart(BaseCode eveCode, LiveObjPtr obj) {
 	EventPtr eve = BASE.getEvent(eveCode);
@@ -1403,7 +1499,7 @@ void GameLive::api_sceneICD(BaseCode sceneCode, const BlockPos& mazeSize, const 
 	api_sceneInit(sceneCode, mazeSize);
 	api_sceneCalculate();
 	api_sceneDisplay();
-	api_setWindowSize(windowSize);
+	api_setSceneSize(windowSize);
 }
 
 void GameLive::api_kidSet(BaseCode kidCode, const BlockPos& pos, bool focus) {
@@ -1448,6 +1544,25 @@ void GameLive::api_kidWalkStep(BlockPos::Direction dir) {
 		api_kidWalk(this->_scene->getStepDist(dir));
 	}
 }
+
+void GameLive::api_changePicture(LiveObjPtr obj, const string& newcsb) {
+	if (this->_scene) {
+		this->_scene->changePicture(obj, newcsb);
+	}
+}
+
+void GameLive::api_delayTime(std::function<void(float)> func, float delaySec, const string& key) {
+	cocos2d::Director::getInstance()->getScheduler()->schedule(func, &LIVE, 1, 1, delaySec, false, key);
+}
+void GameLive::api_undelay(const string &key) {
+	cocos2d::Director::getInstance()->getScheduler()->unschedule(key, &LIVE);
+}
+
+void GameLive::api_autoAddActionLock(LiveObjPtr obj, float lockAdd) {
+	 float now = PAINT.clock();
+	 float loc = obj->getActionLock();
+	 obj->setActionLock(loc > now ? loc : now + lockAdd);
+ }
 
 void GameLive::judge() {
 step_one:
@@ -1517,7 +1632,6 @@ step_two:
 					return;
 				}
 				else if (jud == judgeNextObject) {
-					ind++;
 					continue;
 				}
 				else if (jud == judgeNextLayer) {
@@ -1591,7 +1705,6 @@ bool GameLive::keyPushed(float* keyarray, vector<GameKeyPress> vgkp) {
 			return false;
 	return true;
 }
-
 bool GameLive::keyPushedOnly(float* keyarray, GameKeyPress gkp) {
 	auto keys = keyarray;
 	//pushed
@@ -1669,3 +1782,4 @@ bool GameLive::keyCyclePushedOnly(float* keys, vector<GameKeyPress> vgkp, float 
 			keypressedcnt++;
 	return ((int)vgkp.size()) == keypressedcnt;
 }
+

@@ -10,11 +10,13 @@ const GameObject	GameObject::origin;
 const float			GameBase::KID_MOVE_SPEED_IN_BIG_BLOCKS = 6.0f;
 const BlockType		GameBase::KID_STEP = 1;
 const float			GameBase::KID_RUN_COMPARED_TO_WALK = 2.5f;
+const float			GameBase::USE_TOOL_TIME = 0.5f;
 
 const int			GameBase::DETECT_SPLIT = 2;
 const GameCommand	GameBase::DEFAULT_COMMAND = GameCommand::emptyCmd;
 
 void GameBase::init() {
+	cocos2d::FileUtils::getInstance()->addSearchPath("res/Tools");
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
 	GameTranslator::create<BasicMoveTranslator>(basicMoveTranslator, &transData);
@@ -35,8 +37,8 @@ void GameBase::init() {
 
     // Scene Create
 	ObjPtr farmsc = GameObject::create(GameObject::BigType::background, farmSceneCode, "farmScene", "", BlockPos(200, 200), WalkType::allWalk, &sceneData, "Grass.csb", nullptr, BlockPos::zero, BlockPos::zero);
-	for (int i = 2; i < 17; i++)
-		for (int j = 2; j < 17; j++) {
+	for (int i = 1; i < 11; i++)
+		for (int j = 1; j < 11; j++) {
 			farmsc->children().push_back(getStuff(soilOriginCode));
 			farmsc->childrenPos().push_back(BigBlockPos(i, j));
 		}

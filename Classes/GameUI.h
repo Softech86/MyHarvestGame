@@ -84,7 +84,7 @@ public:
 	BaseCode tool = StuffCode::toolHoe;
 	LiveObjPtr toolBefore = nullptr;
 
-	void toolPaint();
+	void toolPaint(LiveCode paper);
 	SHCP_OVERRIDE(GameUI, ToolUI);
 	virtual LiveCode start() override;
 	virtual JudgeReturn action(LiveCode node, float* keyarray) override;

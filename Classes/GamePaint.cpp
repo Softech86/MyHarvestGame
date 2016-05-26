@@ -7,11 +7,6 @@
 using cocos2d::Node;
 using cocos2d::Scene;
 
-// 似乎斜坐标下屏幕位置的移动的计算还是很不正常，尤其涉及那人行进时间投射后的演算，还有地图是不是要维持方形，什么的挺麻烦的。
-// 所以暂时先维持直角吧
-PxPos GamePaint::dx = PxPos(1, 0);
-PxPos GamePaint::dy = PxPos(0, 1);
-
 PxPos GamePaint::mix(const PxPos& input){
 	return dx * input.x + dy * input.y;
 }
@@ -35,6 +30,9 @@ void GamePaint::init() {
 	auto scene = cocos2d::Scene::create();
 	this->mainsc = scene;
 	cocos2d::Director::getInstance()->runWithScene(scene);
+	auto var = cocos2d::Director::getInstance()->getOpenGLView()->getVisibleSize();
+	windowSize.x = var.width;
+	windowSize.y = var.height;
 	this->gameStartTime = std::chrono::system_clock::now();
 }
 
@@ -135,6 +133,6 @@ void GamePaint::objZOrder(LiveCode object, float oldOrder, float newOrder, float
 				object->setGlobalZOrder(zOrder);
 			}
 		};
-		cocos2d::Director::getInstance()->getScheduler()->schedule(sch, object, LIVE.api_getLoopFreq(), repeat, delaySec, false, "ZOrderFade");
+		cocos2d::Director::getInstance()->getScheduler()->schedule(sch, object, LIVE.api_getLoopFreq(), repeat, delaySec, false, "ZOrderFade" + std::to_string((int)object));
 	}
 }

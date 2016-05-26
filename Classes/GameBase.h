@@ -330,6 +330,7 @@ public:
 	static const float KID_RUN_COMPARED_TO_WALK;
 	static const int DETECT_SPLIT;
 	static const GameCommand DEFAULT_COMMAND;
+	static const float USE_TOOL_TIME;
 
     void init();
 	static const int WALK = 1, RUN = 2, OTHERCMD = 0;

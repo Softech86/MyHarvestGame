@@ -6,7 +6,10 @@ class GamePaint {
 public:
     cocos2d::Scene* mainsc;
 	decltype(std::chrono::system_clock::now()) gameStartTime;
-	static PxPos dx, dy;
+	// 似乎斜坐标下屏幕位置的移动的计算还是很不正常，尤其涉及那人行进时间投射后的演算，还有地图是不是要维持方形，什么的挺麻烦的。
+	// 所以暂时先维持直角吧
+	PxPos dx = PxPos(1, 0), dy = PxPos(0, 1);
+	PxPos windowSize;
 private:
 public:
     void init();

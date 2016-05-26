@@ -52,6 +52,12 @@ enum GameKeyPress {
 	buttonA,
 	buttonB,
 	buttonC,
+	buttonU,
+	buttonI,
+	buttonO,
+	buttonP,
+	buttonN,
+	buttonM,
 	buttonStart,
 	buttonSpace,
 	buttonEnd,
@@ -80,9 +86,10 @@ enum GameCommand {
     runNine,
 	runEnd,
 
-    pick,
+    pickNLook,
     drop,
     useTool,
+	switchTool,
     eat,
 
     talkNext,
@@ -97,6 +104,7 @@ enum GameCommand {
 	detail,
 
 	useHoe,
+	useWaterCan,
 
 };
 
@@ -106,6 +114,7 @@ enum StuffCode {
 	
 	toolStart,
 	toolHoe,
+	toolWaterCan,
 	toolEnd,
 
     soilCombCode,
@@ -223,6 +232,20 @@ public:
             return false;
     }
 
+	bool operator>(const PxPos& rhs) const {
+		if (this->x > rhs.x && this->y > rhs.y)
+			return true;
+		else
+			return false;
+	}
+
+	bool operator<(const PxPos& rhs) const {
+		if (this->x < rhs.x && this->y < rhs.y)
+			return true;
+		else
+			return false;
+	}
+
     bool operator!=(const PxPos& rhs) const {
         if (this->x != rhs.x || this->y != rhs.y)
             return true;
@@ -329,6 +352,20 @@ public:
         else
             return false;
     }
+
+	bool operator>(const BlockPos& rhs) const {
+		if (this->x > rhs.x && this->y > rhs.y)
+			return true;
+		else
+			return false;
+	}
+
+	bool operator<(const BlockPos& rhs) const {
+		if (this->x < rhs.x && this->y < rhs.y)
+			return true;
+		else
+			return false;
+	}
 
 	BlockPos operator * (const BlockPos& rhs) {
 		return BlockPos(this->x * rhs.x, this->y * rhs.y);
