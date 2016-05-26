@@ -4,6 +4,7 @@
 #include "cocos2d.h"
 #include "GamePaint.h"
 #include <cmath>
+#include <list>
 
 // <----->
 void GameLive::enter() {
@@ -24,19 +25,84 @@ GameLiveObject::GameLiveObject(ObjPtr pobj, const BlockPos& margin__)
     this->margin() = margin__;
 }
 
+GameLiveObject::StickTo GameLiveObject::whereToStick(GameObject::BigType type) {
+	switch (type)
+	{
+		break;
+	case GameObject::background:
+	case GameObject::ground:
+		return flat;
+		break;
+	case GameObject::building:
+	case GameObject::furniture:
+	case GameObject::stuff:
+	case GameObject::plant:
+	case GameObject::animal:
+	case GameObject::npc:
+	case GameObject::kid:
+		return cube;
+		break;
+	case GameObject::empty:
+	case GameObject::combStatue:
+		return cube;
+		break;
+	case GameObject::weather:
+	case GameObject::bubble:
+		return cloud;
+		break;
+	default:
+		return cube;
+		break;
+	}
+}
+
+const float GameLiveObject::layerOrderMultiplier = 0.03125f;
 // 计算绘画的屏幕相对位置
 BlockPos GameLiveObject::paintPos() {
     return this->MP() + PxPos(1, 0) * this->zValue();
 }
 
-LiveCode GameLiveObject::paint(LiveCode father) {
+float GameLiveObject::paintLayerOrder(int dotOrder) {
+	if (dotOrder < 0)
+		dotOrder = 0;
+	return (float)(this->MP().y) + layerOrderMultiplier * dotOrder;
+}
+
+void GameLiveObject::setZOrder(float Zorder) {
+	this->_order = Zorder;
+	PAINT.objZOrder(this->paintCode(), Zorder);
+	//cocos2d::log(("Z Order: " + std::to_string(Zorder)).c_str());
+}
+
+void GameLiveObject::setZOrder(float Zorder, float timeSec, float delaySec) {
+	this->_order = Zorder;
+	PAINT.objZOrder(this->paintCode(), this->_order, Zorder, timeSec, delaySec);
+	//cocos2d::log(("Z Order: " + std::to_string(Zorder)).c_str());
+}
+
+void GameLiveObject::autoZOrder(int dotOrder) {
+	if (dotOrder < 0)
+		dotOrder = 0;
+	this->setZOrder(this->paintLayerOrder(dotOrder));
+}
+
+void GameLiveObject::autoZOrder(int dotOrder, float timeSec, float delaySec) {
+	if (dotOrder < 0)
+		dotOrder = 0;
+	this->setZOrder(this->paintLayerOrder(dotOrder), timeSec, delaySec);
+}
+
+LiveCode GameLiveObject::paint(LiveCode father, int dotOrder) {
+	if (dotOrder < 0)
+		dotOrder = 0;
     BlockPos pos = this->paintPos();
     LiveCode result;
 	if (this->getObj()->isCustomPaint()) {
-		result = this->getObj()->customPaint(father, pos);
+		result = this->getObj()->customPaint(father, pos, dotOrder);
     }
     else {
         result = PAINT.objAddToObj(father, this->picture(), pos, scale(), alpha());
+		this->autoZOrder(dotOrder);
     }
 	this->getObj()->afterPaint(result);
 	this->paintCode() = result;
@@ -69,9 +135,16 @@ void GameLiveObject::cleanMove(const BlockPos& vec, MoveType move, float timeSec
 	// TODO
 }
 
-LiveCode GameLiveObject::repaint(LiveCode father) {
+LiveCode GameLiveObject::repaint(LiveCode father, int dotOrder) {
+	if (dotOrder < 0)
+		dotOrder = 0;
 	erase(father);
-	return paint(father);
+	return paint(father, dotOrder);
+}
+
+LiveCode GameLiveObject::changePicture(const string& newpic, LiveCode father, int dotOrder) {
+	this->getObj()->picture() = newpic;
+	return repaint(father, dotOrder);
 }
 
 GameLiveUI::GameLiveUI(UIPtr ori) {
@@ -82,20 +155,181 @@ GameLiveUI::GameLiveUI(UIPtr ori) {
         this->_ui = UIPtr(ori->SHCP());
 }
 
-void GameLiveScene::blockAdd(const LiveObjPtr ptr) {
+
+void GameLiveObject::getRange(BlockPos& out_start, BlockPos& out_size) {
+	if (this->rangeType == objectRelative) {
+		BlockPos::Direction kidfacing = this->getFace();
+		BlockPos start = this->MPC() + rangeCenter;
+		BlockPos area;
+		switch (kidfacing)
+		{
+		case BlockPos::three:
+		case BlockPos::four:
+		case BlockPos::six:
+		case BlockPos::seven:
+			area = rangeArea * BlockPos(2, 2);
+			break;
+		case BlockPos::empty:
+		case BlockPos::five:
+		case BlockPos::one:
+		case BlockPos::two:
+		case BlockPos::eight:
+		case BlockPos::nine:
+		default:
+			area = rangeArea.flip() * BlockPos(2, 2);
+			break;
+		}
+		BlockPos::directionAreaSplit(start, area, kidfacing, 2, out_start, out_size);
+	}
+	else if (this->rangeType == zeroRelative) {
+		out_start = rangeCenter - rangeArea;
+		out_size = rangeArea * BlockPos(2, 2);
+	}
+}
+
+BlockPos GameLiveScene::validize(const BlockPos& input) {
+	BlockType dx, dy;
+	if (input.x > mazeSize.x)
+		dx = mazeSize.x;
+	else if (input.x < 0)
+		dx = 0;
+	else
+		dx = input.x;
+	if (input.y > mazeSize.y)
+		dy = mazeSize.y;
+	else if (input.y < 0)
+		dy = 0;
+	else
+		dy = input.y;
+	return BlockPos(dx, dy);
+}
+
+struct RangeCache {
+	LiveObjPtr ptr = nullptr;
+	int layer = 0;
+};
+
+// true means you need to access the map
+inline bool useCache(std::list<RangeCache>& cache, const std::list<RangeCache>::iterator& end, LiveObjPtr obj, int layer, int count) {
+	for (auto lt = cache.begin(); lt != end; lt++) {
+		if ((*lt).ptr == obj) {
+			if ((*lt).layer < layer) {
+				(*lt).layer = layer;
+				return true;
+			}
+			return false;
+		}
+	}
+	if ((int)cache.size() == count || (int)cache.size() > count)
+		cache.pop_front();
+	RangeCache rc;
+	rc.ptr = obj;
+	rc.layer = layer;
+	cache.push_back(rc);
+	return true;
+}
+
+void GameLiveScene::rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPtr, int>& out_objects) {
+	// 因为这里不需要再切分所以validize是没有问题的，有待切分的地方用validize可是会失真的
+	start = validize(start);
+	BlockPos end = validize(start + size);
+	// 我们来一波优化吧
+	std::list<RangeCache> cache;
+	auto endlt = cache.end();
+
+	for (int ix = start.x; ix < end.x; ix++) {
+		for (int iy = start.y; iy < end.y; iy++) {
+			LiveDot* ld = get(blockMap, mazeSize, BlockPos(ix, iy));
+			if (ld == nullptr)
+				continue;
+			else {
+				for (int i = 0; i < (int)ld->size(); i++){
+					LiveObjPtr ptr = (*ld)[i];
+					if (ptr != this->liveKid && ptr != this->liveScene) {
+						if (useCache(cache, endlt, ptr, i, 5)) {
+							auto mapfind = out_objects.find(ptr);
+							if (mapfind == out_objects.end()){
+								auto pa = std::pair<LiveObjPtr, int>(ptr, i);
+								out_objects.insert(pa);
+							}
+							else
+								if (mapfind->second < i)
+									out_objects[ptr] = i;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void GameLiveScene::sortObjects(const BlockPos& kidPos, BlockPos::Direction kidDir, map<LiveObjPtr, int>& objects, vector<LiveObjPtr> &outResult) {
+	for (auto& par : objects) {
+		outResult.push_back(par.first);
+	}
+	//TODO
+}
+
+void GameLiveScene::kidRangeObjects(vector<LiveObjPtr>& out_result) {
+	if (this->liveKid == nullptr)
+		return;
+	BlockPos start, size;
+	this->liveKid->getRange(start, size);
+	map<LiveObjPtr, int> objects;
+	rangeGetObjects(start, size, objects);
+	sortObjects(this->liveKid->MPC(), this->liveKid->getFace(), objects, out_result);
+}
+
+int GameLiveScene::insertPositionCompare(LiveObjPtr lhs, LiveObjPtr rhs) {
+	if (lhs == nullptr) return -1;
+	if (rhs == nullptr) return 1;
+	if (lhs->zValue() != rhs->zValue())
+		return lhs->zValue() - rhs->zValue();
+	if (lhs->getObj()->type() != rhs->getObj()->type())
+		return lhs->getObj()->type() - rhs->getObj()->type();
+	return 0;
+}
+
+LiveDot::iterator GameLiveScene::findInsertPosition(LiveDot& ld, LiveObjPtr obj) {
+	auto i = ld.begin();
+	for (; i != ld.end(); ++i) {
+		if (insertPositionCompare(*i, obj) > 0)
+			break;
+	}
+	return i;
+}
+
+int GameLiveScene::liveDotInsert(LiveDot &ld, LiveObjPtr obj) {
+	auto pos = findInsertPosition(ld, obj);
+	if (pos == ld.end()) {
+		ld.push_back(obj);
+		return ld.size() - 1;
+	}
+	else {
+		int cache = std::distance(ld.begin(), pos);
+		ld.insert(pos, obj);
+		return cache;
+	}
+}
+
+int GameLiveScene::blockAdd(const LiveObjPtr ptr) {
     if (ptr == nullptr)
-        return;
+        return -1;
+	int result = -1;
     BlockPos drawpos = ptr->MP();
-    BlockPos scenesize = this->scene->size();
     for (int i = 0; i < ptr->size().x; i++) {
         for (int j = 0; j < ptr->size().y; j++) {
-            auto ld = get(this->blockMap, scenesize, drawpos + BlockPos(i, j));
+            auto ld = get(this->blockMap, this->mazeSize, drawpos + BlockPos(i, j));
             if (ld == nullptr)
                 continue;
-            else
-                ld->push_back(ptr);
+			else {
+				int temp = liveDotInsert(*ld, ptr);
+				if (i == 0 && j == 0)
+					result = temp;
+			}
         }
     }
+	return result;
 }
 
 void GameLiveScene::dotRemoveLayer(LiveDot& ld, const LiveObjPtr ptr) {
@@ -117,10 +351,9 @@ void GameLiveScene::blockRemove(const LiveObjPtr ptr) {
     if (ptr == nullptr)
         return;
     BlockPos drawpos = ptr->MP();
-    BlockPos scenesize = this->scene->size();
     for (int i = 0; i < ptr->size().x; i++) {
         for (int j = 0; j < ptr->size().y; j++) {
-            LiveDot *ld = get(this->blockMap, scenesize, drawpos + BlockPos(i, j));
+            LiveDot *ld = get(this->blockMap, this->mazeSize, drawpos + BlockPos(i, j));
             if (ld == nullptr)
                 continue;
             else
@@ -130,26 +363,39 @@ void GameLiveScene::blockRemove(const LiveObjPtr ptr) {
 }
 
 // 这里直接就修改live对象了
-void GameLiveScene::blockMove(LiveObjPtr oldptr, const BlockPos& vec) {
+int GameLiveScene::blockMove(LiveObjPtr oldptr, const BlockPos& vec) {
     if (oldptr == nullptr)
-        return;
+        return -1;
     // 现在这东西很暴力，之后一定需要优化
     // 但是如果你想保留物品在移动之后的物品位置始终是最上面的话你是在这里不可以优化的啊
     // 嗯就是这样。
     blockRemove(oldptr);
     oldptr->margin() += vec;
-    blockAdd(oldptr);
+    return blockAdd(oldptr);
 }
 
 // 这里直接就修改live对象了
-void GameLiveScene::blockReplace(LiveObjPtr oldptr, ObjPtr newobj) {
+int GameLiveScene::blockReplace(LiveObjPtr oldptr, ObjPtr newobj) {
     if (newobj == nullptr)
-        return;
+        return -1;
     else {
         blockRemove(oldptr);
 		oldptr->setObj(newobj);
-        blockAdd(oldptr);
+        return blockAdd(oldptr);
     }
+}
+
+int GameLiveScene::blockIndexQuery(LiveObjPtr ptr) {
+	if (!ptr)
+		return -1;
+	auto ld = get(this->blockMap, this->mazeSize, ptr->MP());
+	if (!ld)
+		return -1;
+	for (int i = 0; i < (int)(ld->size()); i++) {
+		if ((*ld)[i] == ptr)
+			return i;
+	}
+	return -1;
 }
 
 void GameLiveScene::addBind(LiveObjPtr outptr, LiveObjPtr inptr) {
@@ -234,17 +480,18 @@ void GameLiveScene::removeAllInBind(LiveObjPtr inptr) {
     inptr->inBind().clear();
 }
 
-void GameLiveScene::mapAdd(LiveObjPtr ptr, bool recursive) {
+int GameLiveScene::mapAdd(LiveObjPtr ptr, bool recursive) {
     if (ptr == nullptr)
-        return;
+        return -1;
     else {
-        blockAdd(ptr);
+        int res = blockAdd(ptr);
         if (recursive) {
             for (LiveObjWeak &child : ptr->outBind()) {
                 // 这里不用校验null了，调用的时候会处理的
                 mapAdd(child.lock(), true);
             }
         }
+		return res;
     }
 }
 
@@ -279,22 +526,23 @@ void GameLiveScene::mapRemoveOutBind(LiveObjPtr ptr, bool recursive) {
 }
 
 // 这里直接就修改live对象了
-void GameLiveScene::mapMove(LiveObjPtr ptr, const BlockPos& vec, bool recursive) {
+int GameLiveScene::mapMove(LiveObjPtr ptr, const BlockPos& vec, bool recursive) {
     if (ptr == nullptr)
-        return;
+        return -1;
     else {
-        blockMove(ptr, vec);
+        int res = blockMove(ptr, vec);
         if (recursive) {
             for (auto &child : ptr->outBind()) {
                 mapMove(child.lock(), vec, true);
             }
         }
+		return res;
     }
 }
 
 // 这里直接就修改live对象了
-void GameLiveScene::mapReplace(LiveObjPtr oldptr, ObjPtr newptr) {
-    blockReplace(oldptr, newptr);
+int GameLiveScene::mapReplace(LiveObjPtr oldptr, ObjPtr newptr) {
+    return blockReplace(oldptr, newptr);
 }
 
 void GameLiveScene::dictAdd(LiveCode code, LiveObjPtr obj) {
@@ -318,69 +566,75 @@ LiveObjPtr GameLiveScene::queryCode(LiveCode code) {
     }
 }
 
-LiveObjPtr GameLiveScene::make(BaseCode ptr, bool scene, GameLiveObject::StickTo stick, const BlockPos& margin, int z, float scale, float alpha) {
+// stick 参数要统一去掉
+LiveObjPtr GameLiveScene::make(BaseCode ptr, bool scene, const BlockPos& margin, int z, float scale, float alpha) {
     ObjPtr temp;
     if(scene)
         temp = BASE.getScene(ptr);
     else
         temp = BASE.getStuff(ptr);
-    return GameLiveScene::make(temp, stick, margin, z, scale, alpha);
+    return GameLiveScene::make(temp, margin, z, scale, alpha);
 }
 
-LiveObjPtr GameLiveScene::make(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin, int z, float scale, float alpha) {
+LiveObjPtr GameLiveScene::make(ObjPtr obj, const BlockPos& margin, int z, float scale, float alpha) {
 	BlockPos mppd = BlockPos::zero;
     if(this->scene != nullptr)
 		mppd = this->scene->padding();
-	return make_(obj, stick, margin, mppd, BlockPos::zero, z, scale, alpha);
+	return make_(obj, margin, mppd, BlockPos::zero, z, scale, alpha);
 }
 
-LiveObjPtr GameLiveScene::make_(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin, const BlockPos& mappadding, BlockPos parentAdd, int z, float scale, float alpha) {
-	LiveObjPtr pt(new GameLiveObject(obj, margin + mappadding + parentAdd));
-    pt->zValue() = z;
-    pt->scale() = scale;
-    pt->alpha() = alpha;
-    pt->setStick(stick);
+LiveObjPtr GameLiveScene::make_(ObjPtr obj, const BlockPos& margin, const BlockPos& mappadding, BlockPos parentAdd, int z, float scale, float alpha) {
+	LiveObjPtr pt(new GameLiveObject(obj, margin + parentAdd + (obj->type() == GameObject::BigType::background ? BlockPos::zero : mappadding)));
+	pt->zValue() = z;
+	pt->scale() = scale;
+	pt->alpha() = alpha;
+	pt->setStick(GameLiveObject::whereToStick(obj->type()));
 
 	this->cacheAdd(pt);
 
-    if(obj->type() == GameObject::BigType::combStuff) {
-		parentAdd += pt->MP();
-        for(int index = 0; index < (int)obj->children().size(); index++) {
-            LiveObjPtr livechild = make_(obj->children()[index].lock(), stick, obj->childrenPos()[index], mappadding, parentAdd, z, scale, alpha);
-            addBind(pt, livechild);
-        }
-    }
-    return pt;
+	parentAdd += pt->margin() + (obj->type() == GameObject::BigType::background ? BlockPos::zero : mappadding);
+	for (int index = 0; index < (int)obj->children().size(); index++) {
+		LiveObjPtr livechild = make_(obj->children()[index].lock(), obj->childrenPos()[index], mappadding, parentAdd, z, scale, alpha);
+		addBind(pt, livechild);
+	}
+	return pt;
 }
 
 LiveCode GameLiveScene::getParent(LiveObjPtr obj) {
     LiveCode parent = nullptr;
-	if (obj->getStick() == GameLiveObject::StickTo::surroundings)
-		parent = this->codeSurrounding;
-	else if (obj->getStick() == GameLiveObject::StickTo::kid)
-		parent = this->codeKid;
+	const auto& sti = obj->getStick();
+	if (sti == GameLiveObject::StickTo::flat)
+		parent = this->flatCode();
+	else if (sti == GameLiveObject::StickTo::cube)
+		parent = this->cubeCode();
+	else if (sti == GameLiveObject::StickTo::cloud)
+		parent = this->cloudCode();
 	return parent;
 }
 
 void GameLiveScene::init(const BlockPos& mazeSize) {
     this->codeRoot = PAINT.nodeNew();
-    this->codeSurrounding = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
-    this->codeKid = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+	// 这样的三句话也就确定了三个基本图层的顺序
+    this->codeFlat = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+    this->codeCube = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+	this->codeCloud = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
     
     this->mazeSize = mazeSize;
     this->blockMap = new LiveDot[mazeSize.x * mazeSize.y];
+
+	this->defaultTranslator = BASE.getTranslator(basicObjectTranslator);
 }
 
 void GameLiveScene::setScene(BaseCode scene) {
 	this->scene = BASE.getScene(scene);
 	// scene.margin() always be zero
-	this->add(this->scene, GameLiveObject::StickTo::surroundings, BlockPos::zero);
+	this->liveScene = this->add(this->scene, BlockPos::zero);
 	// viewPoint initialize to the left-under corner of the area you can see in this scene
 	this->viewPoint = this->scene->padding();
 }
 
-LiveObjPtr GameLiveScene::add(ObjPtr obj, GameLiveObject::StickTo stick, const BlockPos& margin) {
-    LiveObjPtr live = make(obj, stick, margin);
+LiveObjPtr GameLiveScene::add(ObjPtr obj, const BlockPos& margin) {
+    LiveObjPtr live = make(obj, margin);
     add(live);
 	return live;
 }
@@ -399,12 +653,14 @@ void GameLiveScene::cacheRemove(LiveObjPtr live) {
 }
 
 void GameLiveScene::add(LiveObjPtr live) {
-    mapAdd(live, false);
+    int indx = mapAdd(live, false);
+	if (indx == -1)
+		return;
     LiveCode parent = this->getParent(live);
 	if(parent == nullptr)
 		return;
 
-	LiveCode code = live->paint(parent);
+	LiveCode code = live->paint(parent, indx);
 	if(code == nullptr)
 		return;
 	
@@ -417,7 +673,7 @@ void GameLiveScene::add(LiveObjPtr live) {
     }
 
 	if (this->getFocus() == live) {
-		focusMoveViewPoint(live, PxPos::zero, live->MP(), true);
+		focusMoveViewPoint(live, PxPos::zero, live->MP(), true, 1);
 	}
 	return;
 }
@@ -438,29 +694,43 @@ void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
 void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive) {
 	BlockPos oldpos = ptr->MP();
 	ptr->move(vec, move, timeSec);
-    if(recursive) {
-        mapMove(ptr, vec, false);
-        for(auto childptr : ptr->outBind())
-            movemove(childptr.lock(), vec, move, timeSec, true);
-    } else {
-        mapMove(ptr, vec, false);
+
+	int ind = mapMove(ptr, vec, false);
+	ptr->autoZOrder(ind, timeSec, 0);
+	BlockPos::Direction facing = vec;
+	ptr->setFace(facing);
+
+	if (recursive) {
+		for (auto childptr : ptr->outBind())
+			movemove(childptr.lock(), vec, move, timeSec, true);
 	}
 
 	if (this->getFocus() == ptr) {
-		focusMoveViewPoint(ptr, oldpos, ptr->MP(), false);
+		focusMoveViewPoint(ptr, oldpos, ptr->MP(), false, vec.distance() / timeSec);
 	}
 }
 
 void GameLiveScene::replace(LiveObjPtr oldptr, ObjPtr newptr) {
-    mapReplace(oldptr, newptr);
-	oldptr->repaint(this->getParent(oldptr));
-    // I guess there should be no problem
+	if (oldptr != nullptr && newptr != nullptr) {
+		int indx = mapReplace(oldptr, newptr);
+		dictRemove(oldptr->paintCode());
+		LiveCode code = oldptr->repaint(this->getParent(oldptr), indx);
+		dictAdd(code, oldptr);
+		// I guess there should be no problem
+	}
+}
+
+void GameLiveScene::changePicture(LiveObjPtr ptr, const string& picture) {
+	int indx = blockIndexQuery(ptr);
+	dictRemove(ptr->paintCode());
+	LiveCode code = ptr->changePicture(picture, this->getParent(ptr), indx);
+	dictAdd(code, ptr);
 }
 
 GameLiveScene::LineReturn GameLiveScene::DistanceToCentralLine(const PxPos& windowRelative, const PxPos& direction, PxPos& outResult) {
 	if (direction == PxPos::zero)
 		return NEVER;
-	PxPos window = this->windowSize;
+	PxPos window = PAINT.unmix(this->windowSize);
 	float lineY = window.y / 2, lineX = window.x / 2;
 	float disY = lineY - windowRelative.y, disX = lineX - windowRelative.x;
 	float timeY = 0, timeX = 0;
@@ -502,7 +772,7 @@ GameLiveScene::LineReturn GameLiveScene::DistanceToCentralLine(const PxPos& wind
 GameLiveScene::LineReturn GameLiveScene::DistanceToTheOtherLine(const PxPos& windowRelative, const PxPos& direction, PxPos& outResult) {
 	if (direction == BlockPos::zero)
 		return NEVER;
-	PxPos window = this->windowSize;
+	PxPos window = PAINT.unmix(this->windowSize);
 	float lineY = window.y / 2, lineX = window.x / 2;
 	float disY = lineY - windowRelative.y, disX = lineX - windowRelative.x;
 	float dis, velocity;
@@ -565,7 +835,7 @@ PxPos GameLiveScene::moveBreak(const PxPos& moveAll, const PxPos& move2, const P
 }
 
 PxPos GameLiveScene::focus(const PxPos& newpos) {
-	PxPos winSze = this->windowSize;
+	PxPos winSze = PAINT.unmix(this->windowSize);
 	PxPos scSze = this->scene->size();
 	PxPos scPad = this->scene->padding();
 	PxPos result;
@@ -590,7 +860,7 @@ PxPos GameLiveScene::focus(const PxPos& newpos) {
 	return result;
 }
 
-void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, const PxPos& newpos, bool flash) {
+void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, const PxPos& newpos, bool flash, float speed) {
 	if(obj == nullptr)
 		return;
 	PxPos dist1 = PxPos::zero;
@@ -602,9 +872,9 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 	PxPos cache = this->viewPoint;
 	GameLiveScene::LineReturn flag1 = this->DistanceToCentralLine(oldRela, kidMove, dist1);
 	PxPos moveAll = result - cache;
-	float time1 = PxPos::time(dist1, kidMoveSpeed * SMALL_BLOCK_PX);
+	float time1 = PxPos::time(dist1, speed * SMALL_BLOCK_PX);
 	float sqrSum = PxPos::distance(PxPos::zero, kidMove);
-	float timeAll = PxPos::time(kidMove, kidMoveSpeed * SMALL_BLOCK_PX);
+	float timeAll = PxPos::time(kidMove, speed * SMALL_BLOCK_PX);
 	if (flash)
 		setViewPoint(result);
 	else if (result == cache) {
@@ -617,10 +887,10 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 			if (kidMove == PxPos::zero)
 				time3 = 0;
 			else if ((int)std::abs(moveAll.x) > 0) {
-				time3 = std::abs(moveAll.x) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+				time3 = std::abs(moveAll.x) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
 			}
 			else {
-				time3 = std::abs(moveAll.y) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+				time3 = std::abs(moveAll.y) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 			}
 			moveViewPoint(result, time3, time1);
 
@@ -636,10 +906,10 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 			if (kidMove == PxPos::zero)
 				time2 = 0;
 			else if ((int)std::abs(move2.x) > 0) {
-				time2 = std::abs(move2.x) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+				time2 = std::abs(move2.x) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
 			}
 			else {
-				time2 = std::abs(move2.y) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+				time2 = std::abs(move2.y) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 			}
 
 			moveViewPoint(cache + move2, time2, time1);
@@ -649,13 +919,13 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 				return;
 			}
 			else {
-				float time25 = PxPos::time(dist2, kidMoveSpeed * SMALL_BLOCK_PX);
+				float time25 = PxPos::time(dist2, speed * SMALL_BLOCK_PX);
 				if (time25 > time2) {
 					moveViewPoint(cache + move2, 0, time25 - time2);
 				}
 				PxPos move3 = moveBreak(moveAll, move2, kidMove);
 				PxPos dist3 = move3;
-				float time3 = PxPos::time(dist3, kidMoveSpeed * SMALL_BLOCK_PX);
+				float time3 = PxPos::time(dist3, speed * SMALL_BLOCK_PX);
 				moveViewPoint(cache + move2 + move3, time3, 0);
 
 				PxPos move4 = (PxPos)moveAll - move2 - move3;
@@ -663,18 +933,18 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 				if (kidMove == PxPos::zero)
 					time4 = 0;
 				else if ((int)std::abs(move4.x) > 0) {
-					time4 = std::abs(move4.x) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
+					time4 = std::abs(move4.x) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.x);
 				}
 				else {
-					time4 = std::abs(move4.y) / std::abs(kidMoveSpeed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
+					time4 = std::abs(move4.y) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 				}
 				PxPos dist4 = kidMove - dist1 - dist2 - dist3;
 				moveViewPoint(result, time4, 0);
-				float time45 = PxPos::time(dist4, kidMoveSpeed * SMALL_BLOCK_PX);
+				float time45 = PxPos::time(dist4, speed * SMALL_BLOCK_PX);
 				if (time45 > time4)
 					moveViewPoint(result, 0, time45 - time4);
 
-				cocos2d::log("move:");
+			/*	cocos2d::log("move:");
 				string str = std::to_string(move2.x) + " " + std::to_string(move2.y);
 				cocos2d::log(str.c_str());
 				str = std::to_string(move3.x) + " " + std::to_string(move3.y);
@@ -691,7 +961,7 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 				cocos2d::log("time:");
 				str = std::to_string(time1) + " " + std::to_string(time2) + " " + std::to_string(time3) + " " + std::to_string(time4) + " ";
 				cocos2d::log(str.c_str());
-
+*/
 			}
 		}
 	}
@@ -705,7 +975,7 @@ void GameLiveScene::setViewPoint(const PxPos& point) {
 // TODO breakpause 打断之后的操作
 void GameLiveScene::setFocus(const LiveObjPtr ptr, bool breakpause) {
 	this->focusOn = ptr;
-	focusMoveViewPoint(ptr, PxPos::zero, ptr->MP(), true);
+	focusMoveViewPoint(ptr, PxPos::zero, ptr->MP(), true, 1);
 }
 
 // rollback是一个对于dalyaSec为负数的确认提示
@@ -725,7 +995,7 @@ void GameLiveScene::kidSet(ObjPtr child, const BlockPos& margin) {
 	if(child == nullptr)
 		return;
 	if(kidPtr() == nullptr) {
-		LiveObjPtr kind = GameLiveScene::make(child, GameLiveObject::StickTo::kid, margin);
+		LiveObjPtr kind = GameLiveScene::make(child, margin);
 		this->liveKid = kind;
 		add(kind);
 	}
@@ -742,7 +1012,14 @@ void GameLiveScene::kidMove(const BlockPos& vec, MoveType type, float time, bool
 
 void GameLiveScene::kidWalk(const BlockPos& vec) {
 	if (vec != BlockPos::zero) {
-		float time = BlockPos::time(vec, kidMoveSpeed);
+		float time = BlockPos::time(vec, kidWalkSpeed);
+		kidMove(vec, MoveType::linear, time, true);
+	}
+}
+
+void GameLiveScene::kidRun(const BlockPos& vec) {
+	if (vec != BlockPos::zero) {
+		float time = BlockPos::time(vec, kidWalkSpeed * kidRunComparedToWalk);
 		kidMove(vec, MoveType::linear, time, true);
 	}
 }
@@ -766,14 +1043,13 @@ void GameLiveScene::kidReplace(ObjPtr newkid) {
 
 void GameLiveScene::switchFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& margin, bool recursive) {
 	remove(obj, recursive);
-	obj->setStick(GameLiveObject::StickTo::kid);
 	obj->margin() = margin;
 	add(obj);
+	addBind(this->kidPtr(), obj);
 }
 
 void GameLiveScene::switchFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin, bool recursive) {
 	remove(obj, recursive);
-	obj->setStick(GameLiveObject::StickTo::surroundings);
 	obj->margin() = margin;
 	add(obj);
 }
@@ -783,8 +1059,9 @@ void GameLiveScene::allDim(bool black) {
 }
 
 void GameLiveScene::allClear() {
-	PAINT.nodeRemoveAllChildren(this->surroundingCode());
-	PAINT.nodeRemoveAllChildren(this->kidCode());
+	PAINT.nodeRemoveAllChildren(this->flatCode());
+	PAINT.nodeRemoveAllChildren(this->cubeCode());
+	PAINT.nodeRemoveAllChildren(this->cloudCode());
 }
 
 BlockPos GameLiveScene::getWindowRelativePosition(const BlockPos& pos) {
@@ -853,51 +1130,11 @@ Walkable GameLiveScene::detect(LiveObjPtr newptr, const BlockPos::Direction& dir
         return Walkable::nullWalk; // if it returns this, there seems to be a bug, so we need to print a warning.
     BlockPos start;
     BlockType dx, dy;
-    if (dir == BlockPos::Direction::empty) {
-        return Walkable::nullWalk;
-    } else if (dir == BlockPos::Direction::one) {
-        dx = newptr->size().x / detectSplit;
-        dy = newptr->size().y / detectSplit;
-        start = BlockPos::zero;
-    } else if (dir == BlockPos::Direction::two) {
-        dx = newptr->size().x;
-        dy = newptr->size().y / detectSplit;
-        start = BlockPos::zero;
-    } else if (dir == BlockPos::Direction::three) {
-        dx = newptr->size().x / detectSplit;
-        dy = newptr->size().y / detectSplit;
-        start = newptr->size() - BlockPos(dx, 0);
-    } else if (dir == BlockPos::Direction::four) {
-        dx = newptr->size().x / detectSplit;
-        dy = newptr->size().y;
-        start = BlockPos::zero;
-    } else if (dir == BlockPos::Direction::five) {
-        dx = newptr->size().x;
-        dy = newptr->size().y;
-        start = BlockPos::zero;
-    } else if (dir == BlockPos::Direction::six) {
-        dx = newptr->size().x / detectSplit;
-        dy = newptr->size().y;
-        start = newptr->size() - BlockPos(dx, 0);
-    } else if (dir == BlockPos::Direction::seven) {
-        dx = newptr->size().x / detectSplit;
-        dy = newptr->size().y / detectSplit;
-        start = BlockPos(0, newptr->size().y - dy);
-    } else if (dir == BlockPos::Direction::eight) {
-        dx = newptr->size().x;
-        dy = newptr->size().y / detectSplit;
-        start = BlockPos(0, newptr->size().y - dy);
-    } else if (dir == BlockPos::Direction::nine) {
-        dx = newptr->size().x;
-        dy = newptr->size().y / detectSplit;
-        start = newptr->size() - BlockPos(dx, dy);
-    } else {
-        return Walkable::nullWalk;
-    }
 
-
-    BlockPos drawpos = newptr->MP() + start;
-    BlockPos scenesize = this->scene->size();
+	BlockPos out_size, out_start;
+	BlockPos::directionAreaSplit(newptr->MP(), newptr->size(), dir, detectSplit, out_start, out_size);
+	dx = out_size.x;
+	dy = out_size.y;
 
     bool twobreaks = false;
     bool noPass = false;
@@ -905,8 +1142,8 @@ Walkable GameLiveScene::detect(LiveObjPtr newptr, const BlockPos::Direction& dir
     LiveObjPtr slideLayer = nullptr;
     for (BlockType i = 0; i < dx; i++) {
         for (BlockType j = 0; j < dy; j++) {
-            auto current = drawpos + BlockPos(i, j);
-            LiveDot *ld = get(this->blockMap, scenesize, current);
+            auto current = out_start + BlockPos(i, j);
+            LiveDot *ld = get(this->blockMap, this->mazeSize, current);
             if (ld == nullptr)
                 continue;
             else {
@@ -1123,6 +1360,10 @@ vector<LiveUIPtr>::iterator GameLive::_UIPtrQuery(LiveCode id, GameUI::UIType& o
 void GameLive::api_UIStop(LiveCode id) {
 	GameUI::UIType type = GameUI::UIType::empty;
 	auto lt = _UIPtrQuery(id, type);
+	if (*lt != nullptr){
+		(*lt)->UI()->stop();
+		PAINT.objRemove((*lt)->id(), PAINT.mainsc);
+	}
 	if (type == GameUI::empty)
 		return;
 	else if (type == GameUI::up)
@@ -1184,6 +1425,24 @@ void GameLive::api_kidWalk(const BlockPos& vec) {
 	}
 }
 
+void GameLive::api_kidRun(const BlockPos& vec) {
+	if (this->_scene != nullptr) {
+		this->_scene->kidRun(vec);
+	}
+}
+
+void GameLive::api_addObject(BaseCode code, const BlockPos& margin) {
+	if (this->_scene != nullptr) {
+		this->_scene->add(BASE.getStuff(code), margin);
+	}
+}
+
+void GameLive::api_replaceObject(LiveObjPtr obj, ObjPtr ptr) {
+	if (this->_scene != nullptr) {
+		this->_scene->replace(obj, ptr);
+	}
+}
+
 void GameLive::api_kidWalkStep(BlockPos::Direction dir) {
 	if (this->_scene != nullptr) {
 		api_kidWalk(this->_scene->getStepDist(dir));
@@ -1192,36 +1451,96 @@ void GameLive::api_kidWalkStep(BlockPos::Direction dir) {
 
 void GameLive::judge() {
 step_one:
-    for (int i = _UIUp.size() - 1; i >= 0; i--) {
-        if (_UIUp[i] == nullptr)
-            continue;
-        else {
-            EventPtr eve = nullptr;
-            LiveUIPtr ptt = _UIUp[i];
+	if (this->_scene)
+		this->_scene->commandCache = GameBase::DEFAULT_COMMAND;
+	for (int i = _UIUp.size() - 1; i >= 0; i--) {
+		if (_UIUp[i] == nullptr)
+			continue;
+		else {
+			EventPtr eve = nullptr;
+			LiveUIPtr ptt = _UIUp[i];
 			_UIJudgeNow = ptt;
-            JudgeReturn jud = ptt->UI()->action(ptt->id(), this->_keys);
-            if (eve != nullptr) {
-                api_eventStart(eve, nullptr);
-            }
-            if (jud == judgeEnd) {
-                return;
-            } else if (jud == judgeNextObject) {
-                continue;
-            } else if (jud == judgeNextLayer) {
-                break;
-            } else if (jud == judgePreviousObject) {
-                i += 2;
-                if (i >= (int) _UIUp.size())
-                    i -= 2; // 超出的话视作NextObject处理
-            } else if (jud == judgeResetLayer || jud == judgeResetAll) {
-                goto step_one;
-            } else {
-            }
-        }
+			JudgeReturn jud = ptt->UI()->action(ptt->id(), this->_keys);
+			if (eve != nullptr) {
+				api_eventStart(eve, nullptr);
+			}
+			if (jud == judgeEnd) {
+				return;
+			}
+			else if (jud == judgeNextObject) {
+				continue;
+			}
+			else if (jud == judgeNextLayer) {
+				break;
+			}
+			else if (jud == judgePreviousObject) {
+				i += 2;
+				if (i >= (int)_UIUp.size())
+					i -= 2; // 超出的话视作NextObject处理
+			}
+			else if (jud == judgeResetLayer || jud == judgeResetAll) {
+				goto step_one;
+			}
+			else if (jud == judgeObjectLayer) {
+				goto step_two;
+			}
+			else {
+			}
+		}
 	}
 	_UIJudgeNow = nullptr;
 
-    //TODO
+step_two:
+	if (this->_scene) {
+		if (!(this->_scene->commandCache) && this->_scene->defaultTranslator)
+			api_setCommandCache(this->_scene->defaultTranslator->translate(this->keys()));
+		this->_objectJudgeNow = nullptr;
+
+		vector<LiveObjPtr> objects;
+		this->_scene->kidRangeObjects(objects);
+		for (auto ind = 0; ind < (int)objects.size(); ind++) {
+			this->_objectJudgeNow = objects[ind];
+			ObjPtr obj = this->_objectJudgeNow->getObj();
+			if (obj == nullptr)
+				continue;
+			else {
+				GameCommand cmd;
+				if (obj->isCustomTranslate())
+					cmd = obj->translate(this->keys());
+				else
+					cmd = api_getCommandCache();
+				EventPtr eve;
+				JudgeReturn jud= obj->link(cmd, eve);
+				if (eve != nullptr)
+					api_eventStart(eve, nullptr);
+				if (jud == judgeEnd) {
+					return;
+				}
+				else if (jud == judgeNextObject) {
+					ind++;
+					continue;
+				}
+				else if (jud == judgeNextLayer) {
+					break;
+				}
+				else if (jud == judgePreviousObject) {
+					if (ind > 1)
+						ind -= 2;
+				}
+				else if (jud == judgeObjectLayer) {
+					goto step_two;
+				}
+				else if (jud == judgeResetLayer) {
+					goto step_two;
+				}
+				else if (jud == judgeResetAll) {
+					goto step_one;
+				}
+				else {
+				}
+			}
+		}	
+	}
 
 step_three:
     for (int i = _UIDown.size() - 1; i >= 0; i--) {
@@ -1245,7 +1564,11 @@ step_three:
                 i += 2;
                 if (i >= (int) _UIDown.size())
                     i -= 2; // 超出的话视作NextObject处理
-            } else if (jud == judgeResetLayer) {
+			}
+			else if (jud == judgeObjectLayer) {
+				goto step_two;
+			}
+			else if (jud == judgeResetLayer) {
                 goto step_three;
             } else if (jud == judgeResetAll) {
                 goto step_one;
@@ -1256,6 +1579,18 @@ step_three:
 	_UIJudgeNow = nullptr;
 }
 
+bool GameLive::keyPushed(float* keyarray, GameKeyPress gkp) {
+	if (keyarray[gkp] > 0)
+		return true;
+	else
+		return false;
+}
+bool GameLive::keyPushed(float* keyarray, vector<GameKeyPress> vgkp) {
+	for (unsigned int i = 0; i < vgkp.size(); i++)
+		if (keyarray[vgkp[i]] == 0 || keyarray[vgkp[i]] < 0)
+			return false;
+	return true;
+}
 
 bool GameLive::keyPushedOnly(float* keyarray, GameKeyPress gkp) {
 	auto keys = keyarray;
@@ -1271,8 +1606,8 @@ bool GameLive::keyPushedOnly(float* keyarray, GameKeyPress gkp) {
 bool GameLive::keyPushedOnly(float* keyarray, vector<GameKeyPress> vgkp) {
 	auto keys = keyarray;
 	//pushed
-	for (auto gkp = vgkp.begin(); gkp < vgkp.end(); ++gkp)
-		if (keys[*gkp] <= _loopdevation)
+	for (unsigned int i = 0; i < vgkp.size(); i++)
+		if (keys[vgkp[i]] <= _loopdevation)
 			return false;
 	//only
 	int keyPressedNum = 0;
@@ -1281,7 +1616,6 @@ bool GameLive::keyPushedOnly(float* keyarray, vector<GameKeyPress> vgkp) {
 			++keyPressedNum;
 	return ((int)vgkp.size()) == keyPressedNum;
 }
-
 bool GameLive::keyJustPushedOnly(float* keyarray, GameKeyPress gkp) {
 	auto keys = keyarray;
 	//pushed
@@ -1296,8 +1630,8 @@ bool GameLive::keyJustPushedOnly(float* keyarray, GameKeyPress gkp) {
 bool GameLive::keyJustPushedOnly(float* keyarray, vector<GameKeyPress> vgkp) {
 	auto keys = keyarray;
 	//pushed
-	for (auto gkp = vgkp.begin(); gkp < vgkp.end(); ++gkp)
-		if (keys[*gkp] < _loopfreq - _loopdevation || keys[*gkp] > _loopfreq + _loopdevation) //考虑可以忽略的延迟时间?
+	for (unsigned int i = 0; i < vgkp.size(); i++)
+		if (keys[vgkp[i]] < _loopfreq - _loopdevation || keys[vgkp[i]] > _loopfreq + _loopdevation) //考虑可以忽略的延迟时间?
 			return false;
 	//only
 	int keyPressedNum = 0;
@@ -1306,7 +1640,6 @@ bool GameLive::keyJustPushedOnly(float* keyarray, vector<GameKeyPress> vgkp) {
 			++keyPressedNum;
 	return ((int)vgkp.size()) == keyPressedNum;
 }
-
 bool GameLive::_keyCyclePushed(float presstime, float cycleSec) {
 	float time = std::fmod(presstime, cycleSec);
 	if (time > _loopfreq - _loopdevation && time < _loopfreq + _loopdevation)
@@ -1314,7 +1647,6 @@ bool GameLive::_keyCyclePushed(float presstime, float cycleSec) {
 	else
 		return false;
 }
-
 bool GameLive::keyCyclePushedOnly(float* keys, GameKeyPress gkp, float cycleSec) {
 	//pushed
 	if (!_keyCyclePushed(keys[gkp], cycleSec))
@@ -1325,7 +1657,6 @@ bool GameLive::keyCyclePushedOnly(float* keys, GameKeyPress gkp, float cycleSec)
 			return false;
 	return true;
 }
-
 bool GameLive::keyCyclePushedOnly(float* keys, vector<GameKeyPress> vgkp, float cycleSec) {
 	//pushed
 	for (auto gkp : vgkp)

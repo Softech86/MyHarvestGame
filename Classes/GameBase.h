@@ -49,10 +49,15 @@ public:
 };
 
 class GameObject {
+friend class GameBase;
 public:
 
     enum BigType {
-        empty, kid, npc, animal, plant, ground, stuff, combStuff, combStatue
+		empty,
+		background, ground,
+		building, furniture, stuff, plant, animal, npc, kid,
+		weather, bubble,
+		combStatue,
     };
 
     struct JumpData {
@@ -61,7 +66,7 @@ public:
         BlockPos kidPos;
     };
 
-    static GameObject origin;
+    static const GameObject origin;
 
 private:
     BigType _type = BigType::empty;
@@ -78,13 +83,17 @@ private:
     GameAlpha _alphaWalkableBMP;
     vector<JumpData> _jumpInfo;
 
-    JudgeReturn _defaultJudge = JudgeReturn::judgeEnd;
+    JudgeReturn _defaultJudge = JudgeReturn::judgeNextObject;
     TransPtr _translator = nullptr;
     LinkerPtr _link = nullptr;
     ValuePtr _value = nullptr;
 
     bool _customPaint = false;
-    
+	bool _noFacingDifference = true;
+
+	string _littlePicture;
+	string _facingPicture[10];
+
 public:
 
     GameObject() {
@@ -188,6 +197,12 @@ public:
         return this->_link;
     }
 
+	void setChildrenLinker(LinkerPtr lin) {
+		for (auto &obj : this->children()) {
+			obj.lock()->linker() = lin;
+		}
+	}
+
     TransPtr& translator() {
         return this->_translator;
     }
@@ -196,6 +211,14 @@ public:
         return this->_value;
     }
     
+	string& littlePicture() {
+		return this->_littlePicture;
+	}
+
+	string* facingPicture() {
+		return this->_facingPicture;
+	}
+
     void setCustomPaint(bool custom) {
         this->_customPaint = custom;
     }
@@ -204,11 +227,20 @@ public:
         return this->_customPaint;
     }
 
+	bool isCustomTranslate() {
+		return (bool)(this->_translator);
+	}
+
+	GameCommand translate(float* arrOfKeys);
+
 	SHCP_BASE(GameObject);
     virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event);
-    virtual LiveCode customPaint(LiveCode father, const BlockPos& pos);
+	virtual LiveCode customPaint(LiveCode father, const BlockPos& pos, int dotOrder);
+	// DO NOT call paint/repaint/replace/... on the same object in this method
     virtual void afterPaint(LiveCode obj);
-    
+	// return true will change [GameLiveObject]._face later automatically (which means succeed) TODO
+	virtual bool onFaceChange(BlockPos::Direction oldface, BlockPos::Direction newface);
+
     virtual ~GameObject() {
     }
 };
@@ -290,10 +322,17 @@ private:
     std::vector<ObjPtr> sceneData;
     std::vector<TransPtr> transData;
     std::vector<UIPtr> UIData;
+	std::vector<LinkerPtr> linkerData;
 	std::vector<EventPtr> eventData;
 public:
+	static const float KID_MOVE_SPEED_IN_BIG_BLOCKS;
+	static const BlockType KID_STEP;
+	static const float KID_RUN_COMPARED_TO_WALK;
+	static const int DETECT_SPLIT;
+	static const GameCommand DEFAULT_COMMAND;
+
     void init();
-	const static int WALK = 1, RUN = 2, OTHERCMD = 0;
+	static const int WALK = 1, RUN = 2, OTHERCMD = 0;
 	// return 1:walk, 2:run, 0:others
 	static int cmdWalkOrRun(GameCommand cmd);
     ObjPtr getStuff(BaseCode code);
@@ -301,4 +340,7 @@ public:
     TransPtr getTranslator(BaseCode code);
     UIPtr getUI(BaseCode code);
 	EventPtr getEvent(BaseCode code);
+	LinkerPtr getLinker(BaseCode code);
+
+	string getStuffCSB(BaseCode code);
 };

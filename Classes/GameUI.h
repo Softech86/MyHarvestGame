@@ -79,9 +79,18 @@ public:
 	virtual JudgeReturn action(LiveCode node, float* keyarray) override;
 };
 
+class ToolUI : public GameUI {
+public:
+	BaseCode tool = StuffCode::toolHoe;
+	LiveObjPtr toolBefore = nullptr;
+
+	void toolPaint();
+	SHCP_OVERRIDE(GameUI, ToolUI);
+	virtual LiveCode start() override;
+	virtual JudgeReturn action(LiveCode node, float* keyarray) override;
+};
+
 class KidMoveUI : public GameUI {
-private:
-	float _lockUntil = 0;
 public:
 	SHCP_OVERRIDE(GameUI, KidMoveUI);
 	virtual LiveCode start() override;
@@ -110,6 +119,12 @@ class HandTranslator : public GameTranslator {
 public:
 	SHCP_OVERRIDE(GameTranslator, HandTranslator);
 	virtual GameCommand translate(float* keyarray) override;
+};
+
+class SoilLinker : public GameLinker{
+public:
+	SHCP_OVERRIDE(GameLinker, SoilLinker);
+	virtual LinkerReturn link(GameCommand) override;
 };
 
 class StartGameEvent : public GameEvent {

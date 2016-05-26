@@ -20,7 +20,7 @@ JudgeReturn GameUI::action(LiveCode node, float* keyarray) {
 	UNREFERENCED_PARAMETER(keyarray);
 	UNREFERENCED_PARAMETER(node);
 #endif
-    return JudgeReturn::judgeEnd;
+    return JudgeReturn::judgeNextObject;
 }
 
 string GameUI::save() {
@@ -28,7 +28,7 @@ string GameUI::save() {
 }
 
 void GameUI::stop() {
-    
+
 }
 
 LiveCode StartPageUI::start() {
@@ -52,20 +52,66 @@ JudgeReturn KidMoveUI::action(LiveCode node, float* keyarray) {
 	if (LIVE.api_hasScene()) {
 		GameCommand gcmd = this->control()->translate(keyarray);
 		if (gcmd == GameCommand::emptyCmd)
-			return JudgeReturn::judgeEnd;
+			return JudgeReturn::judgeNextObject;
 		float now = PAINT.clock();
-		if (_lockUntil > now)
-			return JudgeReturn::judgeEnd;
-		else {
-			BlockPos dist = LIVE.api_getScenePtr()->getStepDist(BlockPos::cmdToDir(gcmd));
-
-			LIVE.api_kidWalk(dist);
-			_lockUntil = now + LIVE.api_getScenePtr()->getKidWalkTime(dist);
+		LiveObjPtr kid = LIVE.api_kidGet();
+		if (kid != nullptr) {
+			if (LIVE.api_getActionLock(kid) > now)
+				return JudgeReturn::judgeEnd;
+			else {
+				BlockPos dist = LIVE.api_getScenePtr()->getStepDist(BlockPos::cmdToDir(gcmd));
+				auto iswalk = BASE.cmdWalkOrRun(gcmd);
+				if (iswalk == BASE.WALK) {
+					LIVE.api_kidWalk(dist);
+					LIVE.api_setActionLock(kid, now + LIVE.api_getScenePtr()->getKidWalkTime(dist));
+				}
+				else if (iswalk == BASE.RUN) {
+					LIVE.api_kidRun(dist);
+					LIVE.api_setActionLock(kid, now + LIVE.api_getScenePtr()->getKidRunTime(dist));
+				}
+			}
 		}
 	}
 	return JudgeReturn::judgeEnd;
 }
 
+LiveCode ToolUI::start() {
+	//TODO
+	return GameUI::start();
+}
+
+void ToolUI::toolPaint() {
+	if (tool > StuffCode::toolStart && tool < StuffCode::toolEnd) {
+		//TODO
+	}
+}
+
+JudgeReturn ToolUI::action(LiveCode node, float* keyarray) {
+	if (LIVE.api_hasScene()) {
+		GameCommand gcmd = this->control()->translate(keyarray);
+		if (gcmd == useTool && tool > toolStart && tool < toolEnd) {
+			// 动作锁的检测
+			float now = PAINT.clock();
+			LiveObjPtr kid = LIVE.api_kidGet();
+			if (kid != nullptr) {
+				if (LIVE.api_getActionLock(kid) > now)
+					return JudgeReturn::judgeEnd;
+				else
+					LIVE.api_setActionLock(kid, now + 0.5);
+
+				// 枚举各种工具
+				if (tool == toolHoe)
+					LIVE.api_setCommandCache(useHoe);
+				// TODO 未完的枚举
+
+				return judgeNextLayer;
+			}
+		}
+		else
+			return judgeNextObject;
+	}
+	return judgeNextObject;
+}
 
 // 像这种Cycle和Just都是有种算时间差的感觉的，就是你只要一组按钮不是同一个时间差的话，是不会同时判定的吧
 GameCommand BasicMenuTranslator::translate(float* keyarray) {
@@ -88,8 +134,22 @@ GameCommand BasicMenuTranslator::translate(float* keyarray) {
     return GameCommand::emptyCmd;
 }
 
+
+vector<GameKeyPress> vgkp7 = { buttonUp, buttonLeft };
+vector<GameKeyPress> vgkp9 = { buttonUp, buttonRight };
+vector<GameKeyPress> vgkp3 = { buttonDown, buttonRight };
+vector<GameKeyPress> vgkp1 = { buttonDown, buttonLeft };
+vector<GameKeyPress> vgkpr7 = { buttonUp, buttonLeft, buttonSpace };
+vector<GameKeyPress> vgkpr9 = { buttonUp, buttonRight, buttonSpace };
+vector<GameKeyPress> vgkpr3 = { buttonDown, buttonRight, buttonSpace };
+vector<GameKeyPress> vgkpr1 = { buttonDown, buttonLeft, buttonSpace };
+vector<GameKeyPress> vgkpr8 = { buttonUp, buttonSpace };
+vector<GameKeyPress> vgkpr6 = { buttonRight, buttonSpace };
+vector<GameKeyPress> vgkpr2 = { buttonDown, buttonSpace };
+vector<GameKeyPress> vgkpr4 = { buttonLeft, buttonSpace };
+
 GameCommand BasicMoveTranslator::translate(float* keyarray) {
-	// 这里的锁什么的交给运动UI部分自己去想
+	// 这里的锁什么的交给运动UI部分自己去想--已完成
 	if (LIVE.keyPushedOnly(keyarray, buttonUp))
 		return walkEight;
 	else if (LIVE.keyPushedOnly(keyarray, buttonDown))
@@ -99,25 +159,41 @@ GameCommand BasicMoveTranslator::translate(float* keyarray) {
 	else if (LIVE.keyPushedOnly(keyarray, buttonRight))
 		return walkSix;
 
-	vector<GameKeyPress> vgkp = { buttonUp, buttonLeft };
-	if (LIVE.keyPushedOnly(keyarray, vgkp))
+	if (LIVE.keyPushedOnly(keyarray, vgkp7))
 		return walkSeven;
-	vgkp[1] = buttonRight;
-	if (LIVE.keyPushedOnly(keyarray, vgkp))
+	if (LIVE.keyPushedOnly(keyarray, vgkp9))
 		return walkNine;
-	vgkp[0] = buttonDown;
-	if (LIVE.keyPushedOnly(keyarray, vgkp))
+	if (LIVE.keyPushedOnly(keyarray, vgkp3))
 		return walkThree;
-	vgkp[1] = buttonLeft;
-	if (LIVE.keyPushedOnly(keyarray, vgkp))
+	if (LIVE.keyPushedOnly(keyarray, vgkp1))
 		return walkOne;
+
+	if (LIVE.keyPushedOnly(keyarray, vgkpr8))
+		return runEight;
+	if (LIVE.keyPushedOnly(keyarray, vgkpr2))
+		return runTwo;
+	if (LIVE.keyPushedOnly(keyarray, vgkpr4))
+		return runFour;
+	if (LIVE.keyPushedOnly(keyarray, vgkpr6))
+		return runSix;
+
+	if (LIVE.keyPushedOnly(keyarray, vgkpr9))
+		return runNine;
+	if (LIVE.keyPushedOnly(keyarray, vgkpr3))
+		return runThree;
+	if (LIVE.keyPushedOnly(keyarray, vgkpr1))
+		return runOne;
+	if (LIVE.keyPushedOnly(keyarray, vgkpr7))
+		return runSeven;
 
 	return GameCommand::emptyCmd;
 }
 
 GameCommand BasicObjectTranslator::translate(float* keyarray) {
-	if(LIVE.keyPushedOnly(keyarray, GameKeyPress::buttonA))
+	if(LIVE.keyPushed(keyarray, GameKeyPress::buttonA))
 		return GameCommand::pick;
+	if (LIVE.keyPushed(keyarray, GameKeyPress::buttonB))
+		return GameCommand::useTool;
 	//TODO
 
 	return GameCommand::emptyCmd;
@@ -131,9 +207,20 @@ GameCommand HandTranslator::translate(float* keyarray) {
 	return GameCommand::emptyCmd;
 }
 
+LinkerReturn SoilLinker::link(GameCommand gcmd) {
+	LinkerReturn result;
+	result.eve = nullptr;
+	result.judge = judgeNextObject;
+	if (gcmd == useHoe && LIVE.api_getObjectBaseCodeJudgedNow() == soilOriginCode) {
+		LIVE.api_replaceObject(LIVE.api_getObjectPtrJudgedNow(), BASE.getStuff(soilHoedCode));
+		result.judge = judgeEnd;
+	}
+	//TODO weiwancheg
+	return result;
+}
 
 bool StartGameEvent::start(LiveObjPtr obj) {
-	LIVE.api_sceneICD(farmSceneCode, BlockPos(200, 200), BlockPos(PxPos(960, 640)));
+	LIVE.api_sceneICD(farmSceneCode, BlockPos(400, 400), BlockPos(PxPos(960, 640)));
 	LIVE.api_kidSet(KidCode, BigBlockPos(3, 1), true);
 	/*
 	LIVE.api_kidWalk(BigBlockPos(3, 18));
@@ -167,7 +254,6 @@ bool StartGameEvent::start(LiveObjPtr obj) {
 
 	LIVE.api_stopUIJudgedNow();
 	LIVE.api_UIStart(kidMoveUICode);
-
+	LIVE.api_UIStart(toolUICode);
 	return true;
 }
-

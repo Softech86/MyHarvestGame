@@ -6,11 +6,16 @@ class GamePaint {
 public:
     cocos2d::Scene* mainsc;
 	decltype(std::chrono::system_clock::now()) gameStartTime;
+	static PxPos dx, dy;
+private:
 public:
     void init();
 	// get the time elapsed from when the game started in seconds
 	float clock();
     
+	PxPos mix(const PxPos& input);
+	PxPos unmix(const PxPos& input);
+
     LiveCode nodeNew();
     bool nodeDisplay(LiveCode scene);
     void nodeRemove(LiveCode scene);
@@ -22,5 +27,8 @@ public:
     LiveCode objAlpha(LiveCode object, float oldalpha, float newalpha, float timeSec);
     void objRemove(LiveCode object, LiveCode parent);
     
+    void objZOrder(LiveCode object, float ZOrder);
+	void objZOrder(LiveCode object, float oldOrder, float newOrder, float timeSec, float delaySec);
+
 	long long getCurrentTime();
 };

@@ -2,9 +2,12 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <set>
 #include <map>
+#include <memory>
 #include <functional>
 #include "cocos2d.h"
+
 
 #define SHCP shallowCopy
 #define SHCP_BASE(type) virtual inline type* SHCP() { return new type(*this); }
@@ -20,6 +23,7 @@ const float KEY_CYCLE_SEC = 0.5;
 using std::vector;
 using std::string;
 using std::map;
+using std::set;
 
 enum MoveType { linear, };
 
@@ -32,7 +36,7 @@ enum Walkable {
 };
 
 enum JudgeReturn {
-    judgeEnd, judgeNextObject, judgeNextLayer, judgePreviousObject, judgeResetLayer, judgeResetAll
+    judgeEnd, judgeNextObject, judgeNextLayer, judgePreviousObject, judgeObjectLayer, judgeResetLayer, judgeResetAll
 };
 
 enum KeyName {
@@ -91,11 +95,19 @@ enum GameCommand {
     cancel,
 	menu,
 	detail,
+
+	useHoe,
+
 };
 
 enum StuffCode {
     farmPicCode,
     KidCode,
+	
+	toolStart,
+	toolHoe,
+	toolEnd,
+
     soilCombCode,
     soilOriginCode,
     soilHoedCode,
@@ -112,9 +124,14 @@ enum TransCode {
 	basicObjectTranslator,
 };
 
+enum LinkerCode {
+	soilLinkerCode,
+};
+
 enum UICode {
     startPageCode,
 	kidMoveUICode,
+	toolUICode,
 };
 
 enum EventCode {
@@ -136,7 +153,7 @@ class GamePaint;
 class GameUI;
 
 // 每个大格子占用的像素大小
-const PxType BIG_BLOCK_PX = 50;
+const PxType BIG_BLOCK_PX = 40;
 // 每个小格子占用的像素大小
 const PxType SMALL_BLOCK_PX = 10;
 const BlockType BIG_TO_SMALL = BIG_BLOCK_PX / SMALL_BLOCK_PX;
@@ -186,6 +203,18 @@ public:
         this->y -= rhs.y;
         return *this;
     }
+
+	PxPos XCut() {
+		return PxPos(this->x, 0);
+	}
+
+	PxPos YCut() {
+		return PxPos(this->y, 0);
+	}
+	
+	PxPos flip() {
+		return PxPos(this->y, this->x);
+	}
 
     bool operator==(const PxPos& rhs) const {
         if (this->x == rhs.x && this->y == rhs.y)
@@ -251,10 +280,13 @@ public:
     void moveBack(Direction dir);
     static BlockPos dirToBlock(Direction dir);
 	static Direction cmdToDir(GameCommand cmd);
+	static Direction degreeToDir(float degree);
 
     operator PxPos() const {
         return PxPos(this->x * SMALL_BLOCK_PX, this->y * SMALL_BLOCK_PX);
     }
+
+	operator Direction() const;
 
     BlockPos operator+() const {
         return BlockPos(*this);
@@ -300,6 +332,25 @@ public:
 
 	BlockPos operator * (const BlockPos& rhs) {
 		return BlockPos(this->x * rhs.x, this->y * rhs.y);
+	}
+
+	BlockPos XCut() {
+		return BlockPos(this->x, 0);
+	}
+
+	BlockPos YCut() {
+		return BlockPos(0, this->y);
+	}
+
+	BlockPos flip() {
+		return BlockPos(this->y, this->x);
+	}
+
+	static void directionAreaSplit(const BlockPos& start, const BlockPos& size, const Direction dir, const int split, BlockPos& out_start, BlockPos& out_size);
+
+	float distance() const {
+		float xt = this->x, yt = this->y;
+		return std::sqrt((xt * xt) + (yt * yt));
 	}
 
 	static float distance(const BlockPos& left, const BlockPos& right) {
@@ -358,7 +409,7 @@ typedef std::shared_ptr<GameTranslator> TransPtr;
 typedef std::shared_ptr<GameUI> UIPtr;
 typedef std::shared_ptr<GameEvent> EventPtr;
 typedef std::shared_ptr<GameLinker> LinkerPtr;
-typedef std::shared_ptr<map<KeyName, NumType>> ValuePtr;
+typedef std::shared_ptr<map<KeyName, NumType> > ValuePtr;
 
 typedef std::shared_ptr<GameLiveObject> LiveObjPtr;
 typedef std::weak_ptr<GameLiveObject> LiveObjWeak;
