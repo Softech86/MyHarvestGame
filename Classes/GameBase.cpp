@@ -17,6 +17,7 @@ const GameCommand	GameBase::DEFAULT_COMMAND = GameCommand::emptyCmd;
 
 void GameBase::init() {
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Tools");
+	cocos2d::FileUtils::getInstance()->addSearchPath("res/Humans");
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
 	GameTranslator::create<BasicMoveTranslator>(basicMoveTranslator, &transData);
@@ -26,14 +27,33 @@ void GameBase::init() {
 	GameLinker::create<SoilLinker>(soilLinkerCode, &linkerData);
 
     // Object Create
-    GameObject::create(GameObject::ground, farmPicCode, "farmBackground", "", BlockPos(PxPos(960, 640)), WalkType::allWalk, &stuffData, "FarmBackground.csb");
-    ObjPtr soilComb = GameObject::create(GameObject::combStatue, soilCombCode, "soilComb", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData);
-    GameObject::create(GameObject::ground, soilOriginCode, "soilOrigin", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilOrigin.csb", soilComb);
-    GameObject::create(GameObject::ground, soilHoedCode, "soilHoed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilHoed.csb", soilComb);
-    GameObject::create(GameObject::ground, soilWateredCode, "soilWatered", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilWatered.csb", soilComb);
+    GameObject::create(GameObject::ground, farmPicCode, "farmBackground", "", BlockPos(PxPos(960, 640)), WalkType::allWalk, &stuffData, "FarmBackground.csb")
+		->setPickable(false)->setDropable(false);
+
+	ObjPtr soilComb = GameObject::create(GameObject::combStatue, soilCombCode, "soilComb", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData);
+	soilComb->setPickable(false)->setDropable(false);
+    GameObject::create(GameObject::ground, soilOriginCode, "soilOrigin", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilOrigin.csb", soilComb)
+		->setPickable(false)->setDropable(false);
+    GameObject::create(GameObject::ground, soilHoedCode, "soilHoed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilHoed.csb", soilComb)
+		->setPickable(false)->setDropable(false);
+    GameObject::create(GameObject::ground, soilWateredCode, "soilWatered", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilWatered.csb", soilComb)
+		->setPickable(false)->setDropable(false);
 	soilComb->setChildrenLinker(BASE.getLinker(soilLinkerCode));
-	ObjPtr kidp = GameObject::create(GameObject::BigType::kid, KidCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "Kid.csb");
-	kidp->center() = BlockPos(2, 2);
+
+	// 
+	string* kidfacing = new string[] { "KidFace.csb",
+		"KidFace.csb",
+		"KidFace.csb",
+		"KidRight.csb",
+		"KidLeft.csb",
+		"KidFace.csb",
+		"KidRight.csb",
+		"KidLeft.csb",
+		"KidBack.csb",
+		"KidBack.csb",
+	};
+	GameObject::create(GameObject::BigType::kid, KidCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "KidFace.csb")
+		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2))->setFacingPicture(kidfacing);
 
     // Scene Create
 	ObjPtr farmsc = GameObject::create(GameObject::BigType::background, farmSceneCode, "farmScene", "", BlockPos(200, 200), WalkType::allWalk, &sceneData, "Grass.csb", nullptr, BlockPos::zero, BlockPos::zero);
@@ -242,14 +262,13 @@ void GameObject::afterPaint(LiveCode obj) {
 #endif
 }
 
-bool GameObject::onFaceChange(BlockPos::Direction oldface, BlockPos::Direction newface) {
+bool GameObject::onFaceChange(LiveObjPtr obj, BlockPos::Direction oldface, BlockPos::Direction newface) {
 	if (this->_noFacingDifference)
 		return true;
 	else {
-		auto obj = LIVE.api_getObjectPtrJudgedNow();
 		if (obj == nullptr)
 			return true;
-		LIVE.api_objectChangePicture(obj, this->facingPicture()[(int)newface]);
+		LIVE.api_objectChangePicture(obj, this->getFacingPicture()[(int)newface]);
 		return true;
 	}
 }

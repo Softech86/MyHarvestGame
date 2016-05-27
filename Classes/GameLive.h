@@ -27,13 +27,10 @@ private:
     StickTo _stickTo = cube;
     // it is from when the game started in seconds
     float _movingUntil = 0;
+	float _lockUntil = 0;
 	BlockPos::Direction _face = BlockPos::Direction::five;
     vector<LiveObjWeak> _inBind;
 	vector<LiveObjWeak> _outBind;
-	// hand
-	LiveObjWeak _liveHand;
-	int _handNum = 0;
-	float _lockUntil = 0;
 	
 	// judge range is rectangle now
 	RangeType rangeType = RangeType::objectRelative;
@@ -112,7 +109,7 @@ private:
     void setStick(StickTo to) {
         this->_stickTo = to;
     }
-	BlockPos center() { return this->getObj()->center(); }
+	BlockPos getCenter() { return this->getObj()->getCenter(); }
 	float getActionLock() { return this->_lockUntil; }
 	void setActionLock(float until) { this->_lockUntil = until; }
 
@@ -121,12 +118,16 @@ private:
         return this->margin() + this->padding();
     }
 	BlockPos MPC() {
-		return this->MP() + this->center();
+		return this->MP() + this->getCenter();
 	}
 	BlockPos::Direction getFace() { return this->_face; }
-	void setFace(BlockPos::Direction face) {
-		if(getFace() != face && this->getObj()->onFaceChange(this->getFace(), face))
-			this->_face = face;
+	void setFace(LiveObjPtr selfptr, BlockPos::Direction face) {
+		if (selfptr != nullptr) {
+			if (getFace() != face && this->getObj()->onFaceChange(selfptr, this->getFace(), face))
+				this->_face = face;
+		}
+		else
+			cocos2d::log("[LiveObject].setFace nullptr");
 	}
     BlockPos paintPos();
 	float paintLayerOrder(int dotOrder);
@@ -369,6 +370,10 @@ public:
     }
 };
 
+class GameLiveCreature {
+	
+};
+
 class GameLive {
 public:
     static const int LOOP_FREQ_MS = 20;
@@ -531,7 +536,7 @@ public:
 
     void api_npcWalk(LiveObjPtr npc, const BlockPos& vec); //TODO
 
-	static void api_delayTime(std::function<void(float)> func, float delaySec, const string& key);
+	static void api_delayTime(std::function<void(float)> func, float delaySec, const string& key, int repeat = 0);
 	static void api_undelay(const string &key);
 
 	float api_getActionLock(LiveObjPtr obj) { return obj->getActionLock(); }

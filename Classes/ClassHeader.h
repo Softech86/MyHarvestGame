@@ -14,6 +14,7 @@
 // 所有的继承类给我把这句话加上
 #define SHCP_OVERRIDE(base, child) virtual inline base* SHCP() override { return new child(*this); }
 
+#define PRINCIPAL GamePrincipal
 #define PAINT GamePrincipal::getPaint()
 #define BASE GamePrincipal::getBase()
 #define LIVE GamePrincipal::getLive()
@@ -27,6 +28,8 @@ using std::set;
 
 enum MoveType { linear, };
 
+enum SeasonType { haru, natsu, aki, fuyu };
+
 enum WalkType {
     allWalk, noneWalk, alphaWalk
 };
@@ -37,10 +40,6 @@ enum Walkable {
 
 enum JudgeReturn {
     judgeEnd, judgeNextObject, judgeNextLayer, judgePreviousObject, judgeObjectLayer, judgeResetLayer, judgeResetAll
-};
-
-enum KeyName {
-    holdable, dropable
 };
 
 enum GameKeyPress {
@@ -146,6 +145,7 @@ enum UICode {
 enum EventCode {
 	startGameEventCode,
 };
+
 
 
 typedef int BlockType;
@@ -435,6 +435,9 @@ class GameObject;
 class GameLinker;
 class GameEvent;
 class GameTranslator;
+class GamePlant;
+class GameAnimal;
+class GameNPC;
 
 class GameLiveObject;
 class GameLiveScene;
@@ -446,7 +449,6 @@ typedef std::shared_ptr<GameTranslator> TransPtr;
 typedef std::shared_ptr<GameUI> UIPtr;
 typedef std::shared_ptr<GameEvent> EventPtr;
 typedef std::shared_ptr<GameLinker> LinkerPtr;
-typedef std::shared_ptr<map<KeyName, NumType> > ValuePtr;
 
 typedef std::shared_ptr<GameLiveObject> LiveObjPtr;
 typedef std::weak_ptr<GameLiveObject> LiveObjWeak;

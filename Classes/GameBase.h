@@ -49,200 +49,162 @@ public:
 };
 
 class GameObject {
-friend class GameBase;
 public:
 
-    enum BigType {
+	enum BigType {
 		empty,
 		background, ground,
 		building, furniture, stuff, plant, animal, npc, kid,
 		weather, bubble,
-		combStatue,
-    };
+		combStatue, combStuff,
+	};
 
-    struct JumpData {
-        GameAlpha jump;
-        BaseCode sceneCode = -1;
-        BlockPos kidPos;
-    };
+	struct JumpData {
+		GameAlpha jump;
+		BaseCode sceneCode = -1;
+		BlockPos kidPos;
+	};
 
-    static const GameObject origin;
+	static const GameObject origin;
 
 private:
-    BigType _type = BigType::empty;
-    BaseCode _code = -1;
-    std::string _name;
-    std::string _description;
-    BlockPos _size;
-    BlockPos _position;
-    BlockPos _anchor;
-    string _picture = "";
-    vector<ObjWeak> _children;
-    vector<BlockPos> _childrenPos;
-    WalkType _walktype = WalkType::noneWalk;
-    GameAlpha _alphaWalkableBMP;
-    vector<JumpData> _jumpInfo;
+	BigType _type = BigType::empty;
+	BaseCode _code = -1;
+	std::string _name;
+	std::string _description;
+	BlockPos _size;
+	BlockPos _position;
+	BlockPos _anchor;
+	string _picture = "";
+	vector<ObjWeak> _children;
+	vector<BlockPos> _childrenPos;
+	WalkType _walktype = WalkType::noneWalk;
+	GameAlpha _alphaWalkableBMP;
+	vector<JumpData> _jumpInfo;
 
-    JudgeReturn _defaultJudge = JudgeReturn::judgeNextObject;
-    TransPtr _translator = nullptr;
-    LinkerPtr _link = nullptr;
-    ValuePtr _value = nullptr;
+	bool _pickable = true;
+	bool _dropable = true;
 
-    bool _customPaint = false;
+	JudgeReturn _defaultJudge = JudgeReturn::judgeNextObject;
+	TransPtr _translator = nullptr;
+	LinkerPtr _link = nullptr;
+
+	bool _customPaint = false;
 	bool _noFacingDifference = true;
 
 	string _littlePicture;
-	string _facingPicture[10];
+	string* _facingPicture = nullptr;
 
 public:
 
-    GameObject() {
-    }
+	GameObject() {
+	}
 
-    GameObject(
-            BigType type,
-            BaseCode code,
-            const string& name,
-            const string& description,
-            const BlockPos& size,
-            WalkType walkable,
-            const string& pic = "",
-            const BlockPos& anchor = BlockPos::zero,
-            const BlockPos& position = BlockPos::zero) :
-    _type(type),
-    _code(code),
-    _name(name),
-    _description(description),
-    _size(size),
-    _position(position),
-    _picture(pic),
-    _anchor(anchor),
-    _walktype(walkable) {
-    }
+	GameObject(
+		BigType type,
+		BaseCode code,
+		const string& name,
+		const string& description,
+		const BlockPos& size,
+		WalkType walkable,
+		const string& pic = "",
+		const BlockPos& anchor = BlockPos::zero,
+		const BlockPos& position = BlockPos::zero) :
+		_type(type),
+		_code(code),
+		_name(name),
+		_description(description),
+		_size(size),
+		_position(position),
+		_picture(pic),
+		_anchor(anchor),
+		_walktype(walkable) {
+	}
 
-    static ObjPtr create(
-            BigType type,
-            BaseCode code,
-            const string& name,
-            const string& description,
-            const BlockPos& size,
-            WalkType walkable,
-            vector<ObjPtr>* container = nullptr,
-            const string& pic = "",
-            ObjPtr father = nullptr,
-            const BlockPos& anchor = BlockPos::zero,
-            const BlockPos& position = BlockPos::zero) {
-        ObjPtr pt(new GameObject(type, code, name, description, size, walkable, pic, anchor, position));
-        T_push(container, pt, code);
-        if (father != nullptr)
-            father->children().push_back(pt);
-        return pt;
-    }
+	static ObjPtr create(
+		BigType type,
+		BaseCode code,
+		const string& name,
+		const string& description,
+		const BlockPos& size,
+		WalkType walkable,
+		vector<ObjPtr>* container = nullptr,
+		const string& pic = "",
+		ObjPtr father = nullptr,
+		const BlockPos& anchor = BlockPos::zero,
+		const BlockPos& position = BlockPos::zero) {
+		ObjPtr pt(new GameObject(type, code, name, description, size, walkable, pic, anchor, position));
+		T_push(container, pt, code);
+		if (father != nullptr)
+			father->children().push_back(pt);
+		return pt;
+	}
 
-    
-    
-    BigType& type() {
-        return this->_type;
-    }
+	template<class ObjectType>
+	static ObjPtr create(BaseCode code, vector<ObjPtr> *container = nullptr) {
+		return T_create<ObjectType>(code, container);
+	}
 
-    BaseCode& code() {
-        return this->_code;
-    }
+	BigType& type() { return this->_type; }
+	BaseCode& code() { return this->_code; }
+	string& name() { return this->_name; }
+	string& description() { return this->_description; }
+	BlockPos& size() { return this->_size; }
+	BlockPos& padding() { return this->_position; }
+	string& picture() { return this->_picture; }
+	vector<ObjWeak>& children() {
+		return this->_children;
+	}
+	vector<BlockPos>& childrenPos() { return this->_childrenPos; }
+	WalkType& walktype() { return this->_walktype; }
+	GameAlpha& walkBMP() { return this->_alphaWalkableBMP; }
+	vector<JumpData>& jumpInfo() { return this->_jumpInfo; }
+	LinkerPtr& linker() { return this->_link; }
 
-    string& name() {
-        return this->_name;
-    }
-
-    string& description() {
-        return this->_description;
-    }
-
-    BlockPos& size() {
-        return this->_size;
-    }
-
-    BlockPos& padding() {
-        return this->_position;
-    }
-
-    BlockPos& center() {
-        return this->_anchor;
-    }
-
-    string& picture() {
-        return this->_picture;
-    }
-
-    vector<ObjWeak>& children() {
-        return this->_children;
-    }
-
-    vector<BlockPos>& childrenPos() {
-        return this->_childrenPos;
-    }
-    
-    WalkType& walktype() {
-        return this->_walktype;
-    }
-
-    GameAlpha& walkBMP() {
-        return this->_alphaWalkableBMP;
-    }
-
-    vector<JumpData>& jumpInfo() {
-        return this->_jumpInfo;
-    }
-
-    LinkerPtr& linker() {
-        return this->_link;
-    }
-
-	void setChildrenLinker(LinkerPtr lin) {
+	BlockPos getCenter() { return this->_anchor; }
+	GameObject* const setCenter(const BlockPos& cent) { this->_anchor = cent; return this; }
+	GameObject* const setChildrenLinker(LinkerPtr lin) {
 		for (auto &obj : this->children()) {
 			obj.lock()->linker() = lin;
 		}
+		return this;
 	}
 
-    TransPtr& translator() {
-        return this->_translator;
-    }
-
-    ValuePtr& value() {
-        return this->_value;
-    }
-    
-	string& littlePicture() {
-		return this->_littlePicture;
+	TransPtr& translator() { return this->_translator; }
+	string& littlePicture() { return this->_littlePicture; }
+	string* getFacingPicture() { return this->_facingPicture; }
+	GameObject* const setFacingPicture(string* newArray) {
+		this->_noFacingDifference = false;
+		this->_facingPicture = newArray;
+		return this;
 	}
 
-	string* facingPicture() {
-		return this->_facingPicture;
+	GameObject* const setCustomPaint(bool custom) {
+		this->_customPaint = custom;
+		return this;
 	}
 
-    void setCustomPaint(bool custom) {
-        this->_customPaint = custom;
-    }
-    
-    bool isCustomPaint() {
-        return this->_customPaint;
-    }
-
-	bool isCustomTranslate() {
-		return (bool)(this->_translator);
-	}
+	bool isCustomPaint() { return this->_customPaint; }
+	bool isCustomTranslate() { return (bool)(this->_translator); }
+	bool isPickable() { return this->_pickable; }
+	bool isDropable() { return this->_dropable; }
+	GameObject* const setPickable(bool pick) { this->_pickable = pick; return this; }
+	GameObject* const setDropable(bool drop) { this->_dropable = drop; return this; }
 
 	GameCommand translate(float* arrOfKeys);
 
 	SHCP_BASE(GameObject);
-    virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event);
+	virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event);
 	virtual LiveCode customPaint(LiveCode father, const BlockPos& pos, int dotOrder);
 	// DO NOT call paint/repaint/replace/... on the same object in this method
-    virtual void afterPaint(LiveCode obj);
+	virtual void afterPaint(LiveCode obj);
 	// return true will change [GameLiveObject]._face later automatically (which means succeed) TODO
-	virtual bool onFaceChange(BlockPos::Direction oldface, BlockPos::Direction newface);
+	virtual bool onFaceChange(LiveObjPtr obj, BlockPos::Direction oldface, BlockPos::Direction newface);
 
-    virtual ~GameObject() {
-    }
+	virtual ~GameObject() {
+		if (this->_facingPicture != nullptr)
+			delete[] this->_facingPicture;
+	}
 };
 
 class GameTranslator {
@@ -300,7 +262,6 @@ public:
 class GameEvent {
 private:
 public:
-
     GameEvent() {
     }
 	
@@ -314,6 +275,49 @@ public:
 
     virtual ~GameEvent() {
     }
+};
+
+class GamePlant {
+private:
+	const int WITHERED_INDEX = 0;
+	const int DEFALUT_STATUE_COUNT = 5;
+	BaseCode code = -1;
+	string name;
+	int statueCount = DEFALUT_STATUE_COUNT;
+	// 用combStatue来储存不同的状态所对应的可绘制物品，其中把枯萎的状态放在第一个
+	ObjWeak statueObj;
+	// 状态转移判定
+	vector<int> waterNeeded = vector<int>(DEFALUT_STATUE_COUNT);
+	SeasonType season = SeasonType::haru;
+	virtual inline bool isWithered(int water, int sun, SeasonType currentSeason) {
+		if (currentSeason != this->season)
+			return true;
+		else
+			return false;
+	};
+	virtual inline int levelUpRule(int water, int sun, SeasonType currentSeason) {
+		for (int index = 1; index < (int)waterNeeded.size(); index++) {
+			if (waterNeeded[index] > water)
+				return index - 1 < 0 ? 0 : index - 1;
+		}
+		return waterNeeded.size() - 1;
+	};
+	// 函数参数什么的暂时还不知道
+public:
+	virtual inline ObjPtr getDefaultStatue() {
+		ObjPtr comb = this->statueObj.lock();
+		if (comb != nullptr && comb->children().size() > 1)
+			return comb->children()[WITHERED_INDEX + 1].lock();
+		else
+			return nullptr;
+	}
+	virtual inline int levelUp(int water, int sun, SeasonType currentSeason) {
+		if (isWithered(water, sun, currentSeason))
+			return WITHERED_INDEX;
+		return levelUpRule(water, sun, currentSeason);
+	}
+
+	// 这样子的话就算要追加品质系统也就是一个数组的事情了
 };
 
 class GameBase {

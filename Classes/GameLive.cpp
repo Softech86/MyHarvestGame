@@ -104,6 +104,8 @@ LiveCode GameLiveObject::paint(LiveCode father, int dotOrder) {
         result = PAINT.objAddToObj(father, this->picture(), pos, scale(), alpha());
 		this->autoZOrder(dotOrder);
     }
+	if (result == nullptr)
+		cocos2d::log(("paint: paint code null " + this->picture()).c_str());
 	this->getObj()->afterPaint(result);
 	this->paintCode() = result;
     return result;
@@ -708,7 +710,7 @@ void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move,
 	int ind = mapMove(ptr, vec, false);
 	ptr->autoZOrder(ind, timeSec, 0);
 	BlockPos::Direction facing = vec;
-	ptr->setFace(facing);
+	ptr->setFace(ptr, facing);
 
 	if (recursive) {
 		for (auto childptr : ptr->outBind())
@@ -1551,8 +1553,8 @@ void GameLive::api_changePicture(LiveObjPtr obj, const string& newcsb) {
 	}
 }
 
-void GameLive::api_delayTime(std::function<void(float)> func, float delaySec, const string& key) {
-	cocos2d::Director::getInstance()->getScheduler()->schedule(func, &LIVE, 1, 1, delaySec, false, key);
+void GameLive::api_delayTime(std::function<void(float)> func, float delaySec, const string& key, int repeat) {
+	cocos2d::Director::getInstance()->getScheduler()->schedule(func, &LIVE, 1, repeat, delaySec, false, key);
 }
 void GameLive::api_undelay(const string &key) {
 	cocos2d::Director::getInstance()->getScheduler()->unschedule(key, &LIVE);
@@ -1606,10 +1608,10 @@ step_one:
 	_UIJudgeNow = nullptr;
 
 step_two:
+	this->_objectJudgeNow = nullptr;
 	if (this->_scene) {
 		if (!(this->_scene->commandCache) && this->_scene->defaultTranslator)
 			api_setCommandCache(this->_scene->defaultTranslator->translate(this->keys()));
-		this->_objectJudgeNow = nullptr;
 
 		vector<LiveObjPtr> objects;
 		this->_scene->kidRangeObjects(objects);
@@ -1655,6 +1657,7 @@ step_two:
 			}
 		}	
 	}
+	this->_objectJudgeNow = nullptr;
 
 step_three:
     for (int i = _UIDown.size() - 1; i >= 0; i--) {

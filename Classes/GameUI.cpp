@@ -257,14 +257,15 @@ LinkerReturn SoilLinker::link(GameCommand gcmd) {
 		auto sche = [](float dt) {
 			LIVE.api_replaceObject(LIVE.api_getObjectPtrJudgedNow(), BASE.getStuff(soilHoedCode));
 		};
-		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilHoe");
+		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilHoe" + std::to_string((int)LIVE.api_getObjectCodeJudgedNow()));
 		result.judge = judgeEnd;
 	}
 	else if (gcmd == useWaterCan && LIVE.api_getObjectBaseCodeJudgedNow() == soilHoedCode) {
 		auto sche = [](float dt) {
 			LIVE.api_replaceObject(LIVE.api_getObjectPtrJudgedNow(), BASE.getStuff(soilWateredCode));
 		};
-		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilWater");
+		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilWater" + std::to_string((int)LIVE.api_getObjectCodeJudgedNow()));
+		cocos2d::log(std::to_string(LIVE.api_getObjectBaseCodeJudgedNow()).c_str());
 		result.judge = judgeEnd;
 	}
 	//TODO weiwancheg
