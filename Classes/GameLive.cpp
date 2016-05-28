@@ -12,16 +12,19 @@ void GameLive::enter() {
 }
 // <----->
 
-GameLiveObject::GameLiveObject(ObjPtr pobj) {
+GameLiveObject::GameLiveObject(ObjPtr pobj, bool copy) {
     if (pobj == nullptr) {
         _obj = ObjPtr(new GameObject(GameObject::origin));
     } else {
-        _obj = ObjPtr(pobj->SHCP());
+		if (copy)
+			_obj = ObjPtr(pobj->SHCP());
+		else
+			_obj = pobj;
     }
 }
 
-GameLiveObject::GameLiveObject(ObjPtr pobj, const BlockPos& margin__)
-: GameLiveObject::GameLiveObject(pobj) {
+GameLiveObject::GameLiveObject(ObjPtr pobj, const BlockPos& margin__, bool copy)
+: GameLiveObject::GameLiveObject(pobj, copy) {
     this->margin() = margin__;
 }
 
@@ -30,7 +33,9 @@ GameLiveObject::StickTo GameLiveObject::whereToStick(GameObject::BigType type) {
 	{
 		break;
 	case GameObject::background:
+		return background;
 	case GameObject::ground:
+	case GameObject::seed:
 		return flat;
 		break;
 	case GameObject::building:
@@ -56,27 +61,27 @@ GameLiveObject::StickTo GameLiveObject::whereToStick(GameObject::BigType type) {
 	}
 }
 
-const float GameLiveObject::layerOrderMultiplier = 0.03125f;
+const int GameLiveObject::layerOrderMultiplier = 16;
 // 计算绘画的屏幕相对位置
 BlockPos GameLiveObject::paintPos() {
     return this->MP() + PxPos(1, 0) * this->zValue();
 }
 
-float GameLiveObject::paintLayerOrder(int dotOrder) {
+int GameLiveObject::paintLayerOrder(int dotOrder) {
 	if (dotOrder < 0)
 		dotOrder = 0;
-	return (float)(this->MP().y) + layerOrderMultiplier * dotOrder;
+	return 40000 - this->MP().y * layerOrderMultiplier + dotOrder;
 }
 
 void GameLiveObject::setZOrder(float Zorder) {
-	this->_order = Zorder;
 	PAINT.objZOrder(this->paintCode(), Zorder);
+	this->_order = Zorder;
 	//cocos2d::log(("Z Order: " + std::to_string(Zorder)).c_str());
 }
 
 void GameLiveObject::setZOrder(float Zorder, float timeSec, float delaySec) {
-	this->_order = Zorder;
 	PAINT.objZOrder(this->paintCode(), this->_order, Zorder, timeSec, delaySec);
+	this->_order = Zorder;
 	//cocos2d::log(("Z Order: " + std::to_string(Zorder)).c_str());
 }
 
@@ -102,12 +107,12 @@ LiveCode GameLiveObject::paint(LiveCode father, int dotOrder) {
     }
     else {
         result = PAINT.objAddToObj(father, this->picture(), pos, scale(), alpha());
+		this->paintCode() = result;
 		this->autoZOrder(dotOrder);
     }
 	if (result == nullptr)
 		cocos2d::log(("paint: paint code null " + this->picture()).c_str());
 	this->getObj()->afterPaint(result);
-	this->paintCode() = result;
     return result;
 }
 
@@ -149,6 +154,18 @@ LiveCode GameLiveObject::changePicture(const string& newpic, LiveCode father, in
 	return repaint(father, dotOrder);
 }
 
+void GameLiveObject::alpha(float newalpha, float timeSec, float delaySec) {
+	float now = PAINT.clock();
+	float delay = 0;
+	if (_alphaUntil <= now) {
+		_alphaUntil = now;
+	}
+	delay = _alphaUntil - now + delaySec;
+	_alphaUntil += delaySec + timeSec;
+	PAINT.objAlpha(this->paintCode(), this->alpha(), newalpha, timeSec, delaySec);
+	this->alpha() = newalpha;
+}
+
 GameLiveUI::GameLiveUI(UIPtr ori) {
 	if (ori == nullptr) {
 		this->_ui = UIPtr(new GameUI(GameUI::origin));
@@ -158,37 +175,81 @@ GameLiveUI::GameLiveUI(UIPtr ori) {
 }
 
 
-void GameLiveObject::getRange(BlockPos& out_start, BlockPos& out_size) {
-	if (this->rangeType == objectRelative) {
-		BlockPos::Direction kidfacing = this->getFace();
-		BlockPos start = this->MPC() + rangeCenter;
-		BlockPos area;
-		switch (kidfacing)
-		{
-		case BlockPos::three:
-		case BlockPos::four:
-		case BlockPos::six:
-		case BlockPos::seven:
-			area = rangeArea;
-			break;
-		case BlockPos::empty:
-		case BlockPos::five:
-		case BlockPos::one:
-		case BlockPos::two:
-		case BlockPos::eight:
-		case BlockPos::nine:
-		default:
-			area = rangeArea.flip();
-			break;
+void GameLiveHuman::getRange(BlockPos& out_start, BlockPos& out_size) {
+	if (this->_liveObj != nullptr) {
+		if (this->rangeType == objectRelative) {
+			BlockPos::Direction kidfacing = this->_liveObj->getFace();
+			BlockPos start = this->_liveObj->MPC() + rangeCenter;
+			BlockPos area;
+			switch (kidfacing)
+			{
+			case BlockPos::three:
+			case BlockPos::four:
+			case BlockPos::six:
+			case BlockPos::seven:
+				area = rangeArea;
+				break;
+			case BlockPos::empty:
+			case BlockPos::five:
+			case BlockPos::one:
+			case BlockPos::two:
+			case BlockPos::eight:
+			case BlockPos::nine:
+			default:
+				area = rangeArea.flip();
+				break;
+			}
+			start -= area;
+			area = area * BlockPos(2, 2);
+			BlockPos::directionAreaSplit(start, area, kidfacing, 3, out_start, out_size);
 		}
-		start -= area;
-		area = area * BlockPos(2, 2);
-		BlockPos::directionAreaSplit(start, area, kidfacing, 3, out_start, out_size);
+		else if (this->rangeType == zeroRelative) {
+			out_start = rangeCenter - rangeArea;
+			out_size = rangeArea * BlockPos(2, 2);
+		}
 	}
-	else if (this->rangeType == zeroRelative) {
-		out_start = rangeCenter - rangeArea;
-		out_size = rangeArea * BlockPos(2, 2);
+}
+
+vector<GameLivePlant>::iterator GameLiveCreature::_findPlant(vector<GameLivePlant>& container, const BlockPos& position) {
+	for (auto lt = container.begin(); lt != container.end(); lt++) {
+		if (lt->getPosition() == position)
+			return lt;
 	}
+	return container.end();
+}
+
+bool GameLiveCreature::_removePlant(vector<GameLivePlant>& container, const BlockPos& position) {
+	for (auto lt = container.begin(); lt != container.end();) {
+		if (lt->getPosition() == position) {
+			lt = container.erase(lt);
+			return true;
+		}
+		else
+			lt++;
+	}
+	return false;
+}
+
+bool GameLiveCreature::hasPlant(BaseCode sceneCode, const BlockPos& position) {
+	vector<GameLivePlant>* temp;
+	if ((temp = getPlants(sceneCode)) != nullptr) {
+		auto lt = _findPlant(*temp, position);
+		if (lt != temp->end())
+			return true;
+		else
+			return false;
+	}
+	else
+		return false;
+}
+
+bool GameLiveCreature::removePlant(BaseCode sceneCode, const BlockPos& position) {
+	vector<GameLivePlant>* temp;
+	if ((temp = getPlants(sceneCode)) != nullptr) {
+		return _removePlant(*temp, position);
+	}
+	else
+		return false;
 }
 
 BlockPos GameLiveScene::validize(const BlockPos& input) {
@@ -211,6 +272,8 @@ BlockPos GameLiveScene::validize(const BlockPos& input) {
 struct RangeCache {
 	LiveObjPtr ptr = nullptr;
 	int layer = 0;
+	RangeCache() {}
+	RangeCache(LiveObjPtr ptr, int layer) : ptr(ptr), layer(layer) {}
 };
 
 // true means you need to access the map
@@ -226,10 +289,7 @@ inline bool useCache(std::list<RangeCache>& cache, const std::list<RangeCache>::
 	}
 	if ((int)cache.size() == count || (int)cache.size() > count)
 		cache.pop_front();
-	RangeCache rc;
-	rc.ptr = obj;
-	rc.layer = layer;
-	cache.push_back(rc);
+	cache.emplace_back(obj, layer);
 	return true;
 }
 
@@ -283,13 +343,13 @@ void GameLiveScene::sortObjects(const BlockPos& kidPos, BlockPos::Direction kidD
 }
 
 void GameLiveScene::kidRangeObjects(vector<LiveObjPtr>& out_result) {
-	if (this->liveKid == nullptr)
+	if (LIVE.api_kidGet() == nullptr)
 		return;
 	BlockPos start, size;
-	this->liveKid->getRange(start, size);
+	LIVE.api_kidHumanGet()->getRange(start, size);
 	map<LiveObjPtr, int> objects;
-	rangeGetObjects(start, size, objects, this->liveKid);
-	sortObjects(this->liveKid->MPC(), this->liveKid->getFace(), objects, out_result);
+	rangeGetObjects(start, size, objects, LIVE.api_kidGet());
+	sortObjects(LIVE.api_kidGet()->MPC(), LIVE.api_kidGet()->getFace(), objects, out_result);
 }
 
 int GameLiveScene::insertPositionCompare(LiveObjPtr lhs, LiveObjPtr rhs) {
@@ -585,18 +645,18 @@ LiveObjPtr GameLiveScene::make(BaseCode ptr, bool scene, const BlockPos& margin,
         temp = BASE.getScene(ptr);
     else
         temp = BASE.getStuff(ptr);
-    return GameLiveScene::make(temp, margin, z, scale, alpha);
+    return GameLiveScene::make(temp, margin, true, z, scale, alpha);
 }
 
-LiveObjPtr GameLiveScene::make(ObjPtr obj, const BlockPos& margin, int z, float scale, float alpha) {
+LiveObjPtr GameLiveScene::make(ObjPtr obj, const BlockPos& margin, bool copy, int z, float scale, float alpha) {
 	BlockPos mppd = BlockPos::zero;
     if(this->scene != nullptr)
 		mppd = this->scene->padding();
-	return make_(obj, margin, mppd, BlockPos::zero, z, scale, alpha);
+	return make_(obj, margin, mppd, BlockPos::zero, z, scale, alpha, copy);
 }
 
-LiveObjPtr GameLiveScene::make_(ObjPtr obj, const BlockPos& margin, const BlockPos& mappadding, BlockPos parentAdd, int z, float scale, float alpha) {
-	LiveObjPtr pt(new GameLiveObject(obj, margin + parentAdd + (obj->type() == GameObject::BigType::background ? BlockPos::zero : mappadding)));
+LiveObjPtr GameLiveScene::make_(ObjPtr obj, const BlockPos& margin, const BlockPos& mappadding, BlockPos parentAdd, int z, float scale, float alpha, bool copy) {
+	LiveObjPtr pt(new GameLiveObject(obj, margin + parentAdd + (obj->type() == GameObject::BigType::background ? BlockPos::zero : mappadding), copy));
 	pt->zValue() = z;
 	pt->scale() = scale;
 	pt->alpha() = alpha;
@@ -606,7 +666,8 @@ LiveObjPtr GameLiveScene::make_(ObjPtr obj, const BlockPos& margin, const BlockP
 
 	parentAdd += pt->margin() + (obj->type() == GameObject::BigType::background ? BlockPos::zero : mappadding);
 	for (int index = 0; index < (int)obj->children().size(); index++) {
-		LiveObjPtr livechild = make_(obj->children()[index].lock(), obj->childrenPos()[index], mappadding, parentAdd, z, scale, alpha);
+		LiveObjPtr livechild = make_(obj->children()[index].lock(), obj->childrenPos()[index], mappadding, parentAdd, z, scale, alpha, copy);
+		pt->getObj()->children()[index].lock() = livechild->getObj();
 		addBind(pt, livechild);
 	}
 	return pt;
@@ -621,15 +682,22 @@ LiveCode GameLiveScene::getParent(LiveObjPtr obj) {
 		parent = this->cubeCode();
 	else if (sti == GameLiveObject::StickTo::cloud)
 		parent = this->cloudCode();
+	else if (sti == GameLiveObject::StickTo::background)
+		parent = this->backgroundCode();
 	return parent;
 }
 
 void GameLiveScene::init(const BlockPos& mazeSize) {
-    this->codeRoot = PAINT.nodeNew();
+	this->codeRoot = PAINT.nodeNew();
+	this->codeStuff = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+	this->codeEffect = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+	this->codeDim = PAINT.objAddToObj(this->codeEffect, "", PxPos::zero);
+	this->codeLens = PAINT.objAddToObj(this->codeEffect, "", PxPos::zero);
 	// 这样的三句话也就确定了三个基本图层的顺序
-    this->codeFlat = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
-    this->codeCube = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
-	this->codeCloud = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+	this->codeBackground = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
+    this->codeFlat = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
+    this->codeCube = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
+	this->codeCloud = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
     
     this->mazeSize = mazeSize;
     this->blockMap = new LiveDot[mazeSize.x * mazeSize.y];
@@ -645,8 +713,9 @@ void GameLiveScene::setScene(BaseCode scene) {
 	this->viewPoint = this->scene->padding();
 }
 
-LiveObjPtr GameLiveScene::add(ObjPtr obj, const BlockPos& margin) {
-    LiveObjPtr live = make(obj, margin);
+LiveObjPtr GameLiveScene::add(ObjPtr obj, const BlockPos& margin, bool copy) {
+	LiveObjPtr live;
+	live = make(obj, margin, copy);
     add(live);
 	return live;
 }
@@ -980,7 +1049,7 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 }
 
 void GameLiveScene::setViewPoint(const PxPos& point) {
-	PAINT.objMove(this->rootCode(), -point, MoveType::linear, 0);
+	PAINT.objMove(this->stuffCode(), -point, MoveType::linear, 0);
 	this->viewPoint = point;
 }
 
@@ -988,6 +1057,12 @@ void GameLiveScene::setViewPoint(const PxPos& point) {
 void GameLiveScene::setFocus(const LiveObjPtr ptr, bool breakpause) {
 	this->focusOn = ptr;
 	focusMoveViewPoint(ptr, PxPos::zero, ptr->MP(), true, 1);
+}
+
+bool GameLiveScene::isFocusOnKid() {
+	if (LIVE.api_kidGet() == nullptr) return false;
+	else if (this->getFocus() == LIVE.api_kidGet()) return true;
+	else return false;
 }
 
 // rollback是一个对于dalyaSec为负数的确认提示
@@ -998,27 +1073,29 @@ void GameLiveScene::moveViewPoint(const PxPos& point, float timeSec, float delay
 	if (this->viewMovingUntil <= now) {
 		this->viewMovingUntil = now;
 	}
-	PAINT.objMove(this->rootCode(), -point, MoveType::linear, timeSec, this->viewMovingUntil - now  + delaySec);
+	PAINT.objMove(this->stuffCode(), -point, MoveType::linear, timeSec, this->viewMovingUntil - now  + delaySec);
 	this->viewMovingUntil += delaySec + timeSec;
 	this->viewPoint = point;
 }
 
-void GameLiveScene::kidSet(ObjPtr child, const BlockPos& margin) {
+LiveObjPtr GameLiveScene::kidSet(ObjPtr child, const BlockPos& margin, bool copy) {
 	if(child == nullptr)
-		return;
-	if(kidPtr() == nullptr) {
-		LiveObjPtr kind = GameLiveScene::make(child, margin);
-		this->liveKid = kind;
+		return nullptr;
+	if (LIVE.api_kidGet() == nullptr) {
+		LiveObjPtr kind = GameLiveScene::make(child, margin, copy);
 		add(kind);
+		return kind;
 	}
+	else
+		return LIVE.api_kidGet(); //现在的设定是kidSet只在没有kid的时候有效。 // 注意换场景的时候清空人物！ TODO
 }
 
 void GameLiveScene::kidMove(const BlockPos& vec, MoveType type, float time, bool recursive) {
-	if(kidPtr() == nullptr)
+	if (LIVE.api_kidGet() == nullptr)
 		return;
 	else {
-		BlockPos temp = this->liveKid->MP();
-		movemove(this->kidPtr(), vec, type, time, recursive);
+		BlockPos temp = LIVE.api_kidGet()->MP();
+		movemove(LIVE.api_kidGet(), vec, type, time, recursive);
 	}
 }
 
@@ -1037,27 +1114,26 @@ void GameLiveScene::kidRun(const BlockPos& vec) {
 }
 
 void GameLiveScene::kidRemove(bool recursive) {
-	if(kidPtr() == nullptr)
+	if (LIVE.api_kidGet() == nullptr)
 		return;
 	else{
-		remove(kidPtr(), recursive);
-		this->liveKid = nullptr;
+		remove(LIVE.api_kidGet(), recursive);
 	}
 }
 
 void GameLiveScene::kidReplace(ObjPtr newkid) {
-	if(kidPtr() == nullptr)
+	if (LIVE.api_kidGet() == nullptr)
 		return;
 	else {
-		replace(this->kidPtr(), newkid);
+		replace(LIVE.api_kidGet(), newkid);
 	}
 }
 
 void GameLiveScene::kidAddObject(ObjPtr obj, const BlockPos& marginRelative) {
-	if (kidPtr()) {
-		BlockPos kidpos = kidPtr()->MP();
+	if (LIVE.api_kidGet()) {
+		BlockPos kidpos = LIVE.api_kidGet()->MP();
 		LiveObjPtr live = add(obj, marginRelative + kidpos);
-		addBind(kidPtr(), live);
+		addBind(LIVE.api_kidGet(), live);
 	}
 }
 
@@ -1065,7 +1141,7 @@ void GameLiveScene::switchFromSurroundingsToKid(LiveObjPtr obj, const BlockPos& 
 	remove(obj, recursive);
 	obj->margin() = margin;
 	add(obj);
-	addBind(this->kidPtr(), obj);
+	addBind(LIVE.api_kidGet(), obj);
 }
 
 void GameLiveScene::switchFromKidToSurroundings(LiveObjPtr obj, const BlockPos& margin, bool recursive) {
@@ -1074,14 +1150,43 @@ void GameLiveScene::switchFromKidToSurroundings(LiveObjPtr obj, const BlockPos& 
 	add(obj);
 }
 
-void GameLiveScene::allDim(bool black) {
-	// TODO
+void GameLiveScene::allDim(bool black, float timeSec) {
+	removeDim();
+	auto color = black ? cocos2d::Color4B(0, 0, 0, 0) : cocos2d::Color4B(255, 255, 255, 0);
+	auto colorLayer = cocos2d::LayerColor::create(color);
+	auto effects = this->codeDim;
+	effects->addChild(colorLayer);
+	PAINT.objAlpha(colorLayer, 0, 100, timeSec, 0);
+}
+
+void GameLiveScene::allDimFrom(bool black, float timeSec) {
+	removeDim();
+	auto color = black ? cocos2d::Color4B(0, 0, 0, 255) : cocos2d::Color4B(255, 255, 255, 255);
+	auto colorLayer = cocos2d::LayerColor::create(color);
+	auto effects = this->codeDim;
+	effects->addChild(colorLayer);
+	PAINT.objAlpha(colorLayer, 0, 0, timeSec, 0);
+}
+
+void GameLiveScene::removeDim(float delaySec) {
+	if (delaySec == 0)
+		this->codeDim->removeAllChildren();
+	else {
+		auto dim = this->codeDim;
+		auto sch = [dim](float dt) {
+			dim->removeAllChildren();
+		};
+		LIVE.api_delayTime(sch, delaySec, "dimRemove" + std::to_string((int)this));
+	}
 }
 
 void GameLiveScene::allClear() {
+	PAINT.nodeRemoveAllChildren(this->backgroundCode());
 	PAINT.nodeRemoveAllChildren(this->flatCode());
 	PAINT.nodeRemoveAllChildren(this->cubeCode());
 	PAINT.nodeRemoveAllChildren(this->cloudCode());
+	PAINT.nodeRemoveAllChildren(this->codeDim);
+	PAINT.nodeRemoveAllChildren(this->codeLens);
 }
 
 BlockPos GameLiveScene::getWindowRelativePosition(const BlockPos& pos) {
@@ -1321,6 +1426,32 @@ GameLiveScene::detectMoveReturn GameLiveScene::detectMoveOneObject(LiveObjPtr ob
 	return GameLiveScene::detectMoveReturn::canMove;
 }
 
+GameLivePlant::GameLivePlant(BaseCode plant, BaseCode plantScene, const BlockPos& plantPos) {
+	this->_plant = plant;
+	this->_plantScene = plantScene;
+	this->_plantPos = plantPos;
+	this->_plantTime = LIVE.api_getGameTime();
+	if (_refresh)
+		this->levelRefresh();
+}
+
+void GameLivePlant::levelRefresh() {
+	auto tmp = BASE.getPlant(_plant);
+	if (tmp)
+		_stage = tmp->levelUp(_water, _sun, LIVE.api_getSeason());
+}
+
+GameLiveHuman::GameLiveHuman(BaseCode humancode) {
+	this->copyFrom(BASE.getHuman(humancode));
+}
+
+void GameLiveHuman::copyFrom(HumanPtr human) {
+	if (human == nullptr)
+		return;
+	this->_energy = human->fullEnergy;
+	this->_name = human->name;
+	// 未完待续 TODO
+}
 
 int GameLive::keyAddTime() {
 	int cnt = 0;
@@ -1368,6 +1499,7 @@ void GameLive::init() {
 		return;
 	}
 
+	this->_creature->init();
     this->keySet();
     this->enter();
     this->keyLoop();
@@ -1469,6 +1601,14 @@ void GameLive::api_UIStop(BaseCode id) {
 		this->_UIDown.erase(lt);
 }
 
+LiveUIPtr GameLive::api_getUI(BaseCode code) {
+	GameUI::UIType tmp;
+	auto lt = _UIPtrQuery(code, tmp);
+	if (tmp == GameUI::UIType::empty)
+		return nullptr;
+	else
+		return *lt;
+}
 
 void GameLive::api_eventStart(BaseCode eveCode, LiveObjPtr obj) {
 	EventPtr eve = BASE.getEvent(eveCode);
@@ -1506,14 +1646,14 @@ void GameLive::api_sceneICD(BaseCode sceneCode, const BlockPos& mazeSize, const 
 
 void GameLive::api_kidSet(BaseCode kidCode, const BlockPos& pos, bool focus) {
 	ObjPtr pt = BASE.getStuff(kidCode);
-	api_kidSet(pt, pos, focus);
+	api_kidSet(pt, pos, focus, true);
 }
 
-void GameLive::api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus) {
+void GameLive::api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus, bool copy) {
 	if (this->_scene != nullptr) {
-		this->_scene->kidSet(ptr, pos);
+		this->_creature->setKidPtr(this->_scene->kidSet(ptr, pos, copy));
 		if (focus)
-			this->_scene->setFocus(this->_scene->kidPtr());
+			this->_scene->setFocus(api_kidGet());
 	}
 }
 
@@ -1529,8 +1669,15 @@ void GameLive::api_kidRun(const BlockPos& vec) {
 	}
 }
 
-void GameLive::api_addObject(BaseCode code, const BlockPos& margin) {
+void GameLive::api_addObject(BaseCode code, const BlockPos& margin, bool autoAdd) {
 	if (this->_scene != nullptr) {
+		if (autoAdd) {
+			BaseCode sctemp = api_getSceneCode();
+			if (this->_creature && code > plantStuffStart && code < plantStuffEnd && sctemp != -1) {
+				PlantCode pc = BASE.stuffToPlant(code);
+				this->_creature->addPlant(pc, sctemp, margin);
+			}
+		}
 		this->_scene->add(BASE.getStuff(code), margin);
 	}
 }
@@ -1550,6 +1697,24 @@ void GameLive::api_kidWalkStep(BlockPos::Direction dir) {
 void GameLive::api_changePicture(LiveObjPtr obj, const string& newcsb) {
 	if (this->_scene) {
 		this->_scene->changePicture(obj, newcsb);
+	}
+}
+
+bool GameLive::api_hasPlant(BaseCode sceneCode, const BlockPos& position) {
+	if (this->_creature && sceneCode > sceneStart && sceneCode < sceneEnd)
+		return this->_creature->hasPlant(sceneCode, position);
+	else
+		return false;
+}
+
+void GameLive::api_toolLose(BaseCode humanCode) {
+	if (this->_creature) {
+		this->_creature->getHuman(humanCode)->toolLoseStep();
+		auto tempui = LIVE.api_getUI(toolUICode);
+		if (tempui != nullptr && tempui->UI() != nullptr) {
+			auto tool = std::dynamic_pointer_cast<ToolUI>(tempui->UI());
+			tool->toolPaint(tempui->id());
+		}
 	}
 }
 

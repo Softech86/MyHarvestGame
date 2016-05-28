@@ -18,6 +18,7 @@ const GameCommand	GameBase::DEFAULT_COMMAND = GameCommand::emptyCmd;
 void GameBase::init() {
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Tools");
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Humans");
+	cocos2d::FileUtils::getInstance()->addSearchPath("res/Plants");
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
 	GameTranslator::create<BasicMoveTranslator>(basicMoveTranslator, &transData);
@@ -40,8 +41,19 @@ void GameBase::init() {
 		->setPickable(false)->setDropable(false);
 	soilComb->setChildrenLinker(BASE.getLinker(soilLinkerCode));
 
+
+	GameObject::create(GameObject::BigType::stuff, toolHoe, "锄头", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Hoe.csb")
+		->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::BigType::stuff, toolWaterCan, "浇水壶", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WaterCan.csb")
+		->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::BigType::stuff, toolPotatoSeed, "土豆种子", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "PotatoSeed.csb")
+		->setPickable(false)->setDropable(false)->setQuality(1);
+
+	GameObject::create(GameObject::BigType::seed, stuffPotatoSeed, "地里的土豆种子", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Seed.csb")
+		->setPickable(false)->setDropable(false);
+
 	// 
-	string* kidfacing = new string[] { "KidFace.csb",
+	string kidfacing[] = { "KidFace.csb",
 		"KidFace.csb",
 		"KidFace.csb",
 		"KidRight.csb",
@@ -50,10 +62,10 @@ void GameBase::init() {
 		"KidRight.csb",
 		"KidLeft.csb",
 		"KidBack.csb",
-		"KidBack.csb",
+		"KidBack.csb"
 	};
-	GameObject::create(GameObject::BigType::kid, KidCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "KidFace.csb")
-		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2))->setFacingPicture(kidfacing);
+	GameObject::create(GameObject::BigType::kid, kidNormalCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "KidFace.csb")
+		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2));// ->setFacingPicture(kidfacing);
 
     // Scene Create
 	ObjPtr farmsc = GameObject::create(GameObject::BigType::background, farmSceneCode, "farmScene", "", BlockPos(200, 200), WalkType::allWalk, &sceneData, "Grass.csb", nullptr, BlockPos::zero, BlockPos::zero);
@@ -63,6 +75,10 @@ void GameBase::init() {
 			farmsc->childrenPos().push_back(BigBlockPos(i, j));
 		}
 
+	// Plant Create
+
+	// Human Create
+	GameHuman::create(kidHumanCode, "kidSelf", 100, &humanData);
 
     // UI Create
     GameUI::create<StartPageUI>(startPageCode, "startPage", basicMenuTranslator,  &UIData);
@@ -323,6 +339,20 @@ LinkerPtr GameBase::getLinker(BaseCode code) {
 		return nullptr;
 }
 
+PlantPtr GameBase::getPlant(BaseCode code) {
+	if (code >= 0 && code < (int)plantData.size())
+		return plantData[code];
+	else
+		return nullptr;
+}
+
+HumanPtr GameBase::getHuman(BaseCode code) {
+	if (code >= 0 && code < (int)humanData.size())
+		return humanData[code];
+	else
+		return nullptr;
+}
+
 bool GameEvent::start(LiveObjPtr obj) {
     return true;
 }
@@ -354,4 +384,33 @@ int GameBase::cmdWalkOrRun(GameCommand cmd) {
 		return RUN;
 	else
 		return OTHERCMD;
+}
+
+GameCommand GameBase::toolToCmd(BaseCode tool) {
+	if (tool > toolStart && tool < toolEnd) {
+		switch (tool) {
+		case toolHoe:
+			return useHoe;
+		case toolWaterCan:
+			return useWaterCan;
+		case toolPotatoSeed:
+			return usePotatoSeed;
+			//TODO 未完待续
+		default:
+			return emptyCmd;
+		}
+	}
+	else
+		return emptyCmd;
+}
+
+PlantCode GameBase::stuffToPlant(BaseCode plantStuff) {
+	if (plantStuff > plantStuffStart && plantStuff < plantStuffEnd) {
+		if (plantStuff >= stuffPotatoWithered && plantStuff <= stuffPotatoHarvest)
+			return plantPotato;
+		else
+			return plantStart;
+	}
+	else
+		return plantStart;
 }

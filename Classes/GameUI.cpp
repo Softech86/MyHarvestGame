@@ -82,33 +82,29 @@ LiveCode ToolUI::start() {
 }
 
 void ToolUI::toolPaint(LiveCode paper) {
-	PAINT.nodeRemoveAllChildren(paper);
-	PxPos sceneSize = LIVE.api_getSceneSize();
-	PxPos hudSize = PxPos(80, 80);
-	if (sceneSize > hudSize) {
-		LiveCode back = PAINT.objAddToObj(paper, "ToolUIBack.csb", PxPos::zero);
-		if (tool > StuffCode::toolStart && tool < StuffCode::toolEnd) {
-			switch (tool)
-			{
-			case toolHoe:
-				PAINT.objAddToObj(back, "Hoe.csb", PxPos::zero);
-				break;
-			case toolWaterCan:
-				PAINT.objAddToObj(back, "WaterCan.csb", PxPos::zero);
-				break;
-			default:
-				break;
+	if (paper) {
+		PAINT.nodeRemoveAllChildren(paper);
+		PxPos sceneSize = LIVE.api_getSceneSize();
+		PxPos hudSize = PxPos(80, 80);
+		if (sceneSize > hudSize) {
+			LiveCode back = PAINT.objAddToObj(paper, "ToolUIBack.csb", PxPos::zero);
+			GameLiveHuman* human;
+			if ((human = LIVE.api_kidHumanGet()) != nullptr) {
+				auto tool = human->toolGet();
+				if (tool > toolStart && tool < toolEnd) {
+					string csbfile = BASE.getStuffCSB(tool);
+					PAINT.objAddToObj(back, csbfile, PxPos::zero);
+				}
 			}
-			//TODO 枚举
+			paper->setPosition(sceneSize.x - 80, 0);
 		}
-		paper->setPosition(sceneSize.x - 80, 0);
 	}
 }
 
 JudgeReturn ToolUI::action(LiveCode node, float* keyarray) {
 	if (LIVE.api_hasScene()) {
 		GameCommand gcmd = this->control()->translate(keyarray);
-		if (gcmd == useTool && tool > toolStart && tool < toolEnd) {
+		if (gcmd == useTool) {
 			// 动作锁的检测
 			float now = PAINT.clock();
 			LiveObjPtr kid = LIVE.api_kidGet();
@@ -117,14 +113,9 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray) {
 					return JudgeReturn::judgeEnd;
 				else
 					LIVE.api_setActionLock(kid, now + BASE.USE_TOOL_TIME);
-
-				// 枚举各种工具
-				if (tool == toolHoe)
-					LIVE.api_setCommandCache(useHoe);
-				else if (tool = toolWaterCan)
-					LIVE.api_setCommandCache(useWaterCan);
-				// TODO 未完的枚举
-
+				auto cmdtemp = LIVE.api_kidHumanGet()->toolUse();
+				if (cmdtemp != emptyCmd)
+					LIVE.api_setCommandCache(cmdtemp);
 				return judgeNextLayer;
 			}
 		}
@@ -138,10 +129,11 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray) {
 				else
 					LIVE.api_setActionLock(kid, now + BASE.USE_TOOL_TIME);
 
-				if (tool + 1 == toolEnd)
-					tool = toolStart;
+				int toolusing = LIVE.api_kidHumanGet()->toolGet();
+				if (toolusing + 1 == toolEnd)
+					LIVE.api_kidHumanGet()->toolSet(toolStart);
 				else
-					tool++;
+					LIVE.api_kidHumanGet()->toolSet(toolusing + 1);
 				toolPaint(node);
 			}
 			return judgeEnd;
@@ -253,28 +245,37 @@ LinkerReturn SoilLinker::link(GameCommand gcmd) {
 	LinkerReturn result;
 	result.eve = nullptr;
 	result.judge = judgeNextObject;
-	if (gcmd == useHoe && LIVE.api_getObjectBaseCodeJudgedNow() == soilOriginCode) {
+	auto objCode = LIVE.api_getObjectBaseCodeJudgedNow();
+	if (gcmd == useHoe && objCode == soilOriginCode) {
 		auto sche = [](float dt) {
 			LIVE.api_replaceObject(LIVE.api_getObjectPtrJudgedNow(), BASE.getStuff(soilHoedCode));
 		};
-		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilHoe" + std::to_string((int)LIVE.api_getObjectCodeJudgedNow()));
+		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilHoe" + std::to_string((int)objCode));
 		result.judge = judgeEnd;
 	}
-	else if (gcmd == useWaterCan && LIVE.api_getObjectBaseCodeJudgedNow() == soilHoedCode) {
+	else if (gcmd == useWaterCan && objCode == soilHoedCode) {
 		auto sche = [](float dt) {
 			LIVE.api_replaceObject(LIVE.api_getObjectPtrJudgedNow(), BASE.getStuff(soilWateredCode));
 		};
-		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilWater" + std::to_string((int)LIVE.api_getObjectCodeJudgedNow()));
-		cocos2d::log(std::to_string(LIVE.api_getObjectBaseCodeJudgedNow()).c_str());
+		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilWater" + std::to_string((int)objCode));
 		result.judge = judgeEnd;
 	}
-	//TODO weiwancheg
+	else if (gcmd == usePotatoSeed && (objCode == soilHoedCode || objCode == soilWateredCode)
+		&& !LIVE.api_hasPlant(LIVE.api_getSceneCode(), LIVE.api_getObjectPtrJudgedNow()->MP())) {
+		auto sche = [](float dt) {
+			LIVE.api_addObject(stuffPotatoSeed, LIVE.api_getObjectPtrJudgedNow()->MP());
+			LIVE.api_toolLose(kidHumanCode);
+		};
+		LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilWater" + std::to_string((int)objCode));
+		result.judge = judgeEnd;
+	}
+	//TODO 别的工具未完待续
 	return result;
 }
 
 bool StartGameEvent::start(LiveObjPtr obj) {
 	LIVE.api_sceneICD(farmSceneCode, BlockPos(400, 400), BlockPos(PxPos(960, 640)));
-	LIVE.api_kidSet(KidCode, BigBlockPos(3, 1), true);
+	LIVE.api_kidSet(kidNormalCode, BigBlockPos(3, 1), true);
 	/*
 	LIVE.api_kidWalk(BigBlockPos(3, 18));
 	LIVE.api_kidWalk(BigBlockPos(12, -15));

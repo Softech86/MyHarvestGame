@@ -30,9 +30,9 @@ void GamePaint::init() {
 	auto scene = cocos2d::Scene::create();
 	this->mainsc = scene;
 	cocos2d::Director::getInstance()->runWithScene(scene);
-	auto var = cocos2d::Director::getInstance()->getOpenGLView()->getVisibleSize();
-	windowSize.x = var.width;
-	windowSize.y = var.height;
+	//auto var = cocos2d::Director::getInstance()->getOpenGLView()->getVisibleSize();
+	//windowSize.x = var.width;
+	//windowSize.y = var.height;
 	this->gameStartTime = std::chrono::system_clock::now();
 }
 
@@ -44,9 +44,7 @@ float GamePaint::clock() {
 	return msec / 1000;
 }
 
-LiveCode GamePaint::nodeNew() {
-    //TODO
-	// auto background = cocos2d::Sprite::create("tollgateBG.jpg");
+LiveCode GamePaint::nodeNew() {;
 	auto background = cocos2d::Node::create();
 	if (!background)
 		return nullptr;
@@ -74,8 +72,10 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 		node = cocos2d::Node::create();
 	else {
 		node = cocos2d::CSLoader::createNode(picture);
-		if (!node)
+		if (!node) {
+			cocos2d::log(("objAddToObj: node null error" + picture).c_str());
 			return nullptr;
+		}
 		node->setPosition(pos2.x, pos2.y);
 		node->setScale(scale);
 		node->setOpacity(255 * alpha);
@@ -104,35 +104,62 @@ LiveCode GamePaint::objRotate(LiveCode object, float olddegree, float newdegree,
     return nullptr;
 }
 
-LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, float timeSec) {
-    //TODO
-    return nullptr;
+LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, float timeSec, float delaySec) {
+	// BUG SEEMS
+	if (object && oldalpha != newalpha) {
+		if (timeSec == 0 && delaySec == 0)
+			object->setOpacity(newalpha * 255);
+		else {
+			float timePassed = 0;
+			float delta = newalpha - oldalpha;
+			int repeat = timeSec / LIVE.api_getLoopFreq();
+			auto sch = [object, &timePassed, &timeSec, &delta, &oldalpha, &newalpha](float dt) {
+				timePassed += dt;
+				if (timePassed + dt >= timeSec)
+					object->setOpacity(newalpha * 255);
+				else {
+					float alpha = oldalpha + delta / timeSec * timePassed;
+					object->setOpacity(alpha * 255);
+				}
+			};
+			cocos2d::Director::getInstance()->getScheduler()->schedule(sch, object, LIVE.api_getLoopFreq(), repeat, delaySec, false, "AlphaFade" + std::to_string((int)object));
+		}
+	}
+    return object;
 }
 
 void GamePaint::objRemove(LiveCode object, LiveCode parent) {
 	parent->removeChild(object);
 }
 
-void GamePaint::objZOrder(LiveCode object, float ZOrder) {
+void GamePaint::objZOrder(LiveCode object, int ZOrder) {
 	if (object)
-		object->setGlobalZOrder(ZOrder);
+		object->setLocalZOrder(ZOrder);
 }
 
 
-void GamePaint::objZOrder(LiveCode object, float oldOrder, float newOrder, float timeSec, float delaySec) {
-	if (object && oldOrder != newOrder) {
-		float timePassed = 0;
-		float delta = newOrder - oldOrder;
-		int repeat = delta / LIVE.api_getLoopFreq();
-		auto sch = [object, &timePassed, &timeSec, &delta, &oldOrder, &newOrder](float dt) {
-			timePassed += dt;
-			if (timePassed + dt >= timeSec)
-				object->setGlobalZOrder(newOrder);
-			else {
-				float zOrder = oldOrder + delta / timeSec * timePassed;
-				object->setGlobalZOrder(zOrder);
-			}
-		};
-		cocos2d::Director::getInstance()->getScheduler()->schedule(sch, object, LIVE.api_getLoopFreq(), repeat, delaySec, false, "ZOrderFade" + std::to_string((int)object));
-	}
+void GamePaint::objZOrder(LiveCode object, int oldOrder, int newOrder, float timeSec, float delaySec) {
+	if (object && oldOrder != newOrder)
+		object->setLocalZOrder(newOrder);
+	// BUG SEEMS
+	//if (object && oldOrder != newOrder) {
+	//	if (timeSec == 0 && delaySec == 0) {
+	//		object->setLocalZOrder(newOrder);
+	//	}
+	//	else {
+	//		float timePassed = 0;
+	//		float delta = newOrder - oldOrder;
+	//		int repeat = timeSec / LIVE.api_getLoopFreq();
+	//		auto sch = [object, &timePassed, &timeSec, &delta, &oldOrder, &newOrder](float dt) {
+	//			timePassed += dt;
+	//			if (timePassed + dt >= timeSec)
+	//				object->setLocalZOrder(newOrder);
+	//			else {
+	//				float zOrder = oldOrder + delta / timeSec * timePassed;
+	//				object->setLocalZOrder(zOrder);
+	//			}
+	//		};
+	//		cocos2d::Director::getInstance()->getScheduler()->schedule(sch, object, LIVE.api_getLoopFreq(), repeat, delaySec, false, "ZOrderFade" + std::to_string((int)object));
+	//	}
+	//}
 }

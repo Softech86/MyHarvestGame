@@ -81,8 +81,8 @@ public:
 
 class ToolUI : public GameUI {
 public:
-	BaseCode tool = StuffCode::toolHoe;
-	LiveObjPtr toolBefore = nullptr;
+	//BaseCode tool = StuffCode::toolHoe;
+	//LiveObjPtr toolBefore = nullptr; //这个是小图吗？
 
 	void toolPaint(LiveCode paper);
 	SHCP_OVERRIDE(GameUI, ToolUI);

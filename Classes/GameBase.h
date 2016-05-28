@@ -50,10 +50,9 @@ public:
 
 class GameObject {
 public:
-
 	enum BigType {
 		empty,
-		background, ground,
+		background, ground, seed,
 		building, furniture, stuff, plant, animal, npc, kid,
 		weather, bubble,
 		combStatue, combStuff,
@@ -82,6 +81,9 @@ private:
 	GameAlpha _alphaWalkableBMP;
 	vector<JumpData> _jumpInfo;
 
+	int _count = 1;
+	int _quality = 0; //这个数字在物品上表示质量，在工具上表示用一次的损耗度
+
 	bool _pickable = true;
 	bool _dropable = true;
 
@@ -93,7 +95,7 @@ private:
 	bool _noFacingDifference = true;
 
 	string _littlePicture;
-	string* _facingPicture = nullptr;
+	string _facingPicture[10];
 
 public:
 
@@ -161,7 +163,7 @@ public:
 	vector<JumpData>& jumpInfo() { return this->_jumpInfo; }
 	LinkerPtr& linker() { return this->_link; }
 
-	BlockPos getCenter() { return this->_anchor; }
+	BlockPos getCenter() const { return this->_anchor; }
 	GameObject* const setCenter(const BlockPos& cent) { this->_anchor = cent; return this; }
 	GameObject* const setChildrenLinker(LinkerPtr lin) {
 		for (auto &obj : this->children()) {
@@ -172,10 +174,15 @@ public:
 
 	TransPtr& translator() { return this->_translator; }
 	string& littlePicture() { return this->_littlePicture; }
-	string* getFacingPicture() { return this->_facingPicture; }
+	string* getFacingPicture() { 
+		for (int i = 0; i < 10; i++)
+			cocos2d::log(_facingPicture[i].c_str());
+		return this->_facingPicture;
+	}
 	GameObject* const setFacingPicture(string* newArray) {
 		this->_noFacingDifference = false;
-		this->_facingPicture = newArray;
+		for (int i = 0; i < 10; i++)
+			this->_facingPicture[i] = newArray[i];
 		return this;
 	}
 
@@ -188,8 +195,10 @@ public:
 	bool isCustomTranslate() { return (bool)(this->_translator); }
 	bool isPickable() { return this->_pickable; }
 	bool isDropable() { return this->_dropable; }
+	int getQuality() { return this->_quality; }
 	GameObject* const setPickable(bool pick) { this->_pickable = pick; return this; }
 	GameObject* const setDropable(bool drop) { this->_dropable = drop; return this; }
+	GameObject* const setQuality(int quality) { this->_quality = quality; return this; }
 
 	GameCommand translate(float* arrOfKeys);
 
@@ -202,8 +211,6 @@ public:
 	virtual bool onFaceChange(LiveObjPtr obj, BlockPos::Direction oldface, BlockPos::Direction newface);
 
 	virtual ~GameObject() {
-		if (this->_facingPicture != nullptr)
-			delete[] this->_facingPicture;
 	}
 };
 
@@ -281,19 +288,20 @@ class GamePlant {
 private:
 	const int WITHERED_INDEX = 0;
 	const int DEFALUT_STATUE_COUNT = 5;
-	BaseCode code = -1;
+	BaseCode code = -1; // PlantCode
 	string name;
-	int statueCount = DEFALUT_STATUE_COUNT;
+	int statueCount;
 	// 用combStatue来储存不同的状态所对应的可绘制物品，其中把枯萎的状态放在第一个
 	ObjWeak statueObj;
 	// 状态转移判定
-	vector<int> waterNeeded = vector<int>(DEFALUT_STATUE_COUNT);
-	SeasonType season = SeasonType::haru;
+	vector<int> waterNeeded;
+	vector<SeasonType> season;
 	virtual inline bool isWithered(int water, int sun, SeasonType currentSeason) {
-		if (currentSeason != this->season)
-			return true;
-		else
-			return false;
+		for (auto sea : this->season) {
+			if (sea == currentSeason)
+				return false;
+		}
+		return true;
 	};
 	virtual inline int levelUpRule(int water, int sun, SeasonType currentSeason) {
 		for (int index = 1; index < (int)waterNeeded.size(); index++) {
@@ -302,8 +310,16 @@ private:
 		}
 		return waterNeeded.size() - 1;
 	};
-	// 函数参数什么的暂时还不知道
 public:
+	GamePlant() {};
+	GamePlant(BaseCode code, const string& name, int statueCount, ObjWeak statueObj, const vector<int>& waterNeeded, const vector<SeasonType>& season)
+	: code(code), name(name), statueCount(statueCount), statueObj(statueObj), waterNeeded(waterNeeded), season(season) {}
+	static PlantPtr create(BaseCode code, const string& name, int statueCount, ObjWeak statueObj, const vector<int>& waterNeeded, const vector<SeasonType>& season, vector<PlantPtr>* container = nullptr) {
+		PlantPtr pt(new GamePlant(code, name, statueCount, statueObj, waterNeeded, season));
+		T_push(container, pt, code);
+		return pt;
+	}
+
 	virtual inline ObjPtr getDefaultStatue() {
 		ObjPtr comb = this->statueObj.lock();
 		if (comb != nullptr && comb->children().size() > 1)
@@ -320,6 +336,22 @@ public:
 	// 这样子的话就算要追加品质系统也就是一个数组的事情了
 };
 
+class GameHuman {
+public:
+	BaseCode code = -1; // HumanCode
+	string name;
+	int fullEnergy = 100;
+	// 喜好，好感，对话，人物的一些特定事件比如购物菜单等等
+public:
+	GameHuman(){}
+	GameHuman(BaseCode code, const string& name, int fullEnergy) : code(code), name(name), fullEnergy(fullEnergy) {}
+	static HumanPtr create(BaseCode code, const string& name, int fullEnergy, vector<HumanPtr>* container = nullptr) {
+		HumanPtr pt(new GameHuman(code, name, fullEnergy));
+		T_push(container, pt, code);
+		return pt;
+	}
+};
+
 class GameBase {
 private:
     std::vector<ObjPtr> stuffData;
@@ -328,6 +360,8 @@ private:
     std::vector<UIPtr> UIData;
 	std::vector<LinkerPtr> linkerData;
 	std::vector<EventPtr> eventData;
+	std::vector<PlantPtr> plantData;
+	std::vector<HumanPtr> humanData;
 public:
 	static const float KID_MOVE_SPEED_IN_BIG_BLOCKS;
 	static const BlockType KID_STEP;
@@ -340,12 +374,17 @@ public:
 	static const int WALK = 1, RUN = 2, OTHERCMD = 0;
 	// return 1:walk, 2:run, 0:others
 	static int cmdWalkOrRun(GameCommand cmd);
+	static GameCommand toolToCmd(BaseCode tool);
+	static PlantCode stuffToPlant(BaseCode plantStuff);
+
     ObjPtr getStuff(BaseCode code);
     ObjPtr getScene(BaseCode code);
     TransPtr getTranslator(BaseCode code);
     UIPtr getUI(BaseCode code);
 	EventPtr getEvent(BaseCode code);
 	LinkerPtr getLinker(BaseCode code);
+	PlantPtr getPlant(BaseCode code);
+	HumanPtr getHuman(BaseCode code);
 
 	string getStuffCSB(BaseCode code);
 };

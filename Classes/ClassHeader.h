@@ -104,26 +104,57 @@ enum GameCommand {
 
 	useHoe,
 	useWaterCan,
+	usePotatoSeed,
 
 };
 
 enum StuffCode {
     farmPicCode,
-    KidCode,
+    kidNormalCode,
 	
 	toolStart,
 	toolHoe,
 	toolWaterCan,
+	toolPotatoSeed,
 	toolEnd,
+	// 如果你要增加工具的话记得增加command枚举和BASE.toolToCmd函数
 
     soilCombCode,
     soilOriginCode,
     soilHoedCode,
     soilWateredCode,
+
+	plantStuffStart,
+	stuffPotatoWithered,
+	stuffPotatoSeed, 
+	stuffPotatoLittle,
+	stuffPotatoBig, 
+	stuffPotatoHarvest,
+	plantStuffEnd,
+};
+
+enum PlantCode {
+	plantStart,
+	plantPotato,
+	plantEnd,
+	// 如果要增加植物的话记得增加BASE.stuffToPlant函数
+};
+
+enum AnimalCode {
+
+};
+
+enum HumanCode {
+	humanStart,
+	kidHumanCode,
+	seedSellerCode,
+	humanEnd,
 };
 
 enum SceneCode {
-    farmSceneCode
+	sceneStart,
+    farmSceneCode,
+	sceneEnd,
 };
 
 enum TransCode {
@@ -437,7 +468,7 @@ class GameEvent;
 class GameTranslator;
 class GamePlant;
 class GameAnimal;
-class GameNPC;
+class GameHuman;
 
 class GameLiveObject;
 class GameLiveScene;
@@ -449,6 +480,8 @@ typedef std::shared_ptr<GameTranslator> TransPtr;
 typedef std::shared_ptr<GameUI> UIPtr;
 typedef std::shared_ptr<GameEvent> EventPtr;
 typedef std::shared_ptr<GameLinker> LinkerPtr;
+typedef std::shared_ptr<GamePlant> PlantPtr;
+typedef std::shared_ptr<GameHuman> HumanPtr;
 
 typedef std::shared_ptr<GameLiveObject> LiveObjPtr;
 typedef std::weak_ptr<GameLiveObject> LiveObjWeak;
