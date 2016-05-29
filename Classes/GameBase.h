@@ -388,5 +388,5 @@ public:
 	PlantPtr getPlant(BaseCode code);
 	HumanPtr getHuman(BaseCode code);
 
-	string getStuffCSB(BaseCode code);
+	const string& getStuffCSB(BaseCode code);
 };

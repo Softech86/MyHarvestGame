@@ -296,7 +296,7 @@ ObjPtr GameBase::getStuff(BaseCode code) {
         return nullptr;
 }
 
-string GameBase::getStuffCSB(BaseCode code) {
+const string& GameBase::getStuffCSB(BaseCode code) {
 	ObjPtr ptr = getStuff(code);
 	if (ptr)
 		return ptr->picture();
