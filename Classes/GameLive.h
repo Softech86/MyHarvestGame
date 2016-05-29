@@ -9,6 +9,7 @@
 
 class GameLiveObject {
 friend class GameLiveScene;
+friend class GameObjectJudge;
 friend class GameLive;
 friend class GameLiveHuman;
 public:
@@ -187,8 +188,9 @@ private:
     // run velocity is twice of walk velocity
 	float kidRunComparedToWalk = GameBase::KID_RUN_COMPARED_TO_WALK;
 
-    TransPtr defaultTranslator = nullptr;
-	GameCommand commandCache = GameBase::DEFAULT_COMMAND;
+	//To deprecate
+    //TransPtr defaultTranslator = nullptr;
+	//GameCommand commandCache = GameBase::DEFAULT_COMMAND;
 
 	int detectSplit = GameBase::DETECT_SPLIT;
 
@@ -447,10 +449,8 @@ public:
 
 	void getRange(BlockPos& out_start, BlockPos& out_size);
 	GameCommand toolUse() { 
-		if (_tool > toolStart && _tool < toolEnd && _toolCount > 0) {
-			auto result = BASE.toolToCmd(_tool);
-			return result;
-		}
+		if (_tool > toolStart && _tool < toolEnd && _toolCount > 0)
+			return useTool;
 		else
 			return emptyCmd;
 	}
@@ -472,6 +472,47 @@ public:
 			}
 		}
 	}
+};
+
+class GameObjectJudge {
+	BaseCode _humancode = humanStart;
+	LiveObjPtr _objJudged = nullptr;
+	GameCommand _cmdcache = emptyCmd;
+	TransPtr _translator = BASE.getTranslator(basicObjectTranslator);
+
+private:
+	void setObject(LiveObjPtr obj) { this->_objJudged = obj; }
+public:
+	GameObjectJudge() {}
+	GameObjectJudge(BaseCode humancode, GameCommand cmdcache) : _humancode(humancode), _cmdcache(cmdcache) {}
+
+	LiveObjPtr getObjectPtrJudgedNow() const { return this->_objJudged; }
+	LiveCode getObjectNodeJudgedNow() {
+		if (getObjectPtrJudgedNow())
+			return getObjectPtrJudgedNow()->paintCode();
+		else
+			return nullptr;
+	}
+	BaseCode getObjectBaseCodeJudgedNow() {
+		if (getObjectPtrJudgedNow() && getObjectPtrJudgedNow()->getObj())
+			return getObjectPtrJudgedNow()->getObj()->code();
+		else
+			return -1;
+	}
+	GameCommand getCmdCache() { return this->_cmdcache; }
+	void setCmdCache(GameCommand cmdcache) { this->_cmdcache = cmdcache; }
+	BaseCode getHumanCode() { return this->_humancode; }
+	TransPtr setTranslator(TransPtr tr) { this->_translator = tr; }
+
+	void translate(float* keyarray) {
+		if (_translator != nullptr)
+			setCmdCache(_translator->translate(keyarray));
+	}
+	void autoTranslate(float* keyarray) {
+		if (this->_cmdcache == emptyCmd)
+			translate(keyarray);
+	}
+	JudgeReturn judge(float* keyarray, GameLive& live, GameLiveScene& scene, vector<LiveObjPtr>& objects);
 };
 
 class GameLiveCreature {
@@ -555,7 +596,7 @@ private:
     bool* _press = nullptr;
     float* _keys = nullptr;
 
-    LiveObjPtr _objectJudgeNow = nullptr; // TODO
+    //LiveObjPtr _objectJudgeNow = nullptr;
     LiveUIPtr _UIJudgeNow = nullptr;
 
 public:
@@ -611,14 +652,15 @@ public:
     void api_eventStart(BaseCode eveCode, LiveObjPtr obj);
     void api_eventStart(EventPtr eve, LiveObjPtr obj);
     void api_close();
-	
+
+	/*
 	GameCommand api_getCommandCache() {
 		return this->_scene->commandCache;
 	}
 
 	void api_setCommandCache(GameCommand cmd) {
 		this->_scene->commandCache = cmd;
-	}
+	}*/
 
     bool api_hasScene() {
         return this->_scene != nullptr;
@@ -627,57 +669,47 @@ public:
     GameLiveScene* api_getScenePtr() {
         return this->_scene;
     }
-
     LiveCode api_getStuffCode() {
         return this->_scene->stuffCode();
     }
-
 	BaseCode api_getSceneCode() {
 		if (this->_scene && this->_scene->scene)
 			return this->_scene->scene->code();
 		else
 			return sceneStart;
 	}
-
     LiveCode api_getCubeCode() {
         return this->_scene->cubeCode();
     }
-
     LiveCode api_getFlatCode() {
         return this->_scene->flatCode();
     }
-
 	LiveCode api_getCloudCode() {
 		return this->_scene->cloudCode();
 	}
-
     LiveUIPtr api_getUIPtrJudgedNow() {
         return this->_UIJudgeNow;
     };
-
     LiveCode api_getUICodeJudgedNow() {
         if (this->_UIJudgeNow != nullptr)
             return this->_UIJudgeNow->id();
         else
             return nullptr;
     }
-
-	LiveObjPtr api_getObjectPtrJudgedNow() {
+	/*LiveObjPtr api_getObjectPtrJudgedNow() {
 		return this->_objectJudgeNow;
 	}
-
 	LiveCode api_getObjectCodeJudgedNow() {
 		if (this->_objectJudgeNow != nullptr)
 			return this->_objectJudgeNow->paintCode();
 		else
 			return nullptr;
 	}
-
 	BaseCode api_getObjectBaseCodeJudgedNow() {
 		if (api_getObjectPtrJudgedNow() && api_getObjectPtrJudgedNow()->getObj())
 			return api_getObjectPtrJudgedNow()->getObj()->code();
 		return -1;
-	}
+	}*/
 
 	void api_objectChangePicture(LiveObjPtr ptr, const string& picture) {
 		this->_scene->changePicture(ptr, picture);
@@ -697,7 +729,10 @@ public:
 	LiveObjPtr api_kidGet() {
 		return this->_creature->getKidPtr();
 	}
-	GameLiveHuman* api_kidHumanGet() {
+	GameLiveHuman* api_getHuman(BaseCode humanCode) {
+		return this->_creature->getHuman(humanCode);
+	}
+	GameLiveHuman* api_getKidHuman() {
 		return this->_creature->getHuman(kidHumanCode);
 	}
     void api_kidSet(BaseCode kidCode, const BlockPos& pos, bool focus);
@@ -705,6 +740,7 @@ public:
     void api_kidWalk(const BlockPos& vec);
 	void api_kidRun(const BlockPos& vec);
     void api_kidWalkStep(BlockPos::Direction dir);
+	void api_kidRunStep(BlockPos::Direction dir);
     void api_kidPick(LiveObjPtr stuff);
     void api_kidJump(BaseCode sceneCode, BlockPos blocksize, BlockPos kidpos);
 
@@ -720,12 +756,17 @@ public:
 	GameTime api_getGameTime() { return this->_time; }
 	SeasonType api_getSeason() { return this->_time.season; }
 
-	static void api_delayTime(std::function<void(float)> func, float delaySec, const string& key, int repeat = 0);
-	static void api_undelay(const string &key);
+	// refer上面写着个函数的主要关心的物体，取消的时候就会调用它，如果不知道就写&LIVE
+	static void api_delayTime(CocoFunc& func, float delaySec, const string& key,void *refer, int repeat = 0);
+	static void api_undelay(void* refer, const string &key);
+	static void api_undelayAll(void* refer);
 
 	float api_getActionLock(LiveObjPtr obj) { return obj->getActionLock(); }
 	void api_setActionLock(LiveObjPtr obj, float lock) { obj->setActionLock(lock); }
-	void api_autoAddActionLock(LiveObjPtr obj, float lockAdd);
+	void api_addActionLock(LiveObjPtr obj, float lockAdd);
+
+	// 返回新的lock值
+	float api_autoLock(float& lockvalue, float timeSec, float delaySec, bool additive, LockType type, CocoFunc& func);
 
     ~GameLive() {
         if (_scene != nullptr)

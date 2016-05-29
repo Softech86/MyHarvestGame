@@ -174,7 +174,6 @@ GameLiveUI::GameLiveUI(UIPtr ori) {
         this->_ui = UIPtr(ori->SHCP());
 }
 
-
 void GameLiveHuman::getRange(BlockPos& out_start, BlockPos& out_size) {
 	if (this->_liveObj != nullptr) {
 		if (this->rangeType == objectRelative) {
@@ -346,7 +345,7 @@ void GameLiveScene::kidRangeObjects(vector<LiveObjPtr>& out_result) {
 	if (LIVE.api_kidGet() == nullptr)
 		return;
 	BlockPos start, size;
-	LIVE.api_kidHumanGet()->getRange(start, size);
+	LIVE.api_getKidHuman()->getRange(start, size);
 	map<LiveObjPtr, int> objects;
 	rangeGetObjects(start, size, objects, LIVE.api_kidGet());
 	sortObjects(LIVE.api_kidGet()->MPC(), LIVE.api_kidGet()->getFace(), objects, out_result);
@@ -701,8 +700,6 @@ void GameLiveScene::init(const BlockPos& mazeSize) {
     
     this->mazeSize = mazeSize;
     this->blockMap = new LiveDot[mazeSize.x * mazeSize.y];
-
-	this->defaultTranslator = BASE.getTranslator(basicObjectTranslator);
 }
 
 void GameLiveScene::setScene(BaseCode scene) {
@@ -1156,7 +1153,7 @@ void GameLiveScene::allDim(bool black, float timeSec) {
 	auto colorLayer = cocos2d::LayerColor::create(color);
 	auto effects = this->codeDim;
 	effects->addChild(colorLayer);
-	PAINT.objAlpha(colorLayer, 0, 100, timeSec, 0);
+	PAINT.objAlpha(colorLayer, 0, 1, timeSec, 0);
 }
 
 void GameLiveScene::allDimFrom(bool black, float timeSec) {
@@ -1165,7 +1162,7 @@ void GameLiveScene::allDimFrom(bool black, float timeSec) {
 	auto colorLayer = cocos2d::LayerColor::create(color);
 	auto effects = this->codeDim;
 	effects->addChild(colorLayer);
-	PAINT.objAlpha(colorLayer, 0, 0, timeSec, 0);
+	PAINT.objAlpha(colorLayer, 1, 0, timeSec, 0);
 }
 
 void GameLiveScene::removeDim(float delaySec) {
@@ -1173,10 +1170,10 @@ void GameLiveScene::removeDim(float delaySec) {
 		this->codeDim->removeAllChildren();
 	else {
 		auto dim = this->codeDim;
-		auto sch = [dim](float dt) {
+		CocoFunc sch = [dim](float dt) {
 			dim->removeAllChildren();
 		};
-		LIVE.api_delayTime(sch, delaySec, "dimRemove" + std::to_string((int)this));
+		LIVE.api_delayTime(sch, delaySec, "dimRemove" + std::to_string((int)this), &LIVE);
 	}
 }
 
@@ -1646,7 +1643,7 @@ void GameLive::api_sceneICD(BaseCode sceneCode, const BlockPos& mazeSize, const 
 
 void GameLive::api_kidSet(BaseCode kidCode, const BlockPos& pos, bool focus) {
 	ObjPtr pt = BASE.getStuff(kidCode);
-	api_kidSet(pt, pos, focus, true);
+api_kidSet(pt, pos, focus, true);
 }
 
 void GameLive::api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus, bool copy) {
@@ -1694,6 +1691,12 @@ void GameLive::api_kidWalkStep(BlockPos::Direction dir) {
 	}
 }
 
+void GameLive::api_kidRunStep(BlockPos::Direction dir) {
+	if (this->_scene != nullptr) {
+		api_kidRun(this->_scene->getStepDist(dir));
+	}
+}
+
 void GameLive::api_changePicture(LiveObjPtr obj, const string& newcsb) {
 	if (this->_scene) {
 		this->_scene->changePicture(obj, newcsb);
@@ -1710,7 +1713,7 @@ bool GameLive::api_hasPlant(BaseCode sceneCode, const BlockPos& position) {
 void GameLive::api_toolLose(BaseCode humanCode) {
 	if (this->_creature) {
 		this->_creature->getHuman(humanCode)->toolLoseStep();
-		auto tempui = LIVE.api_getUI(toolUICode);
+		auto tempui = this->api_getUI(toolUICode);
 		if (tempui != nullptr && tempui->UI() != nullptr) {
 			auto tool = std::dynamic_pointer_cast<ToolUI>(tempui->UI());
 			tool->toolPaint(tempui->id());
@@ -1718,23 +1721,87 @@ void GameLive::api_toolLose(BaseCode humanCode) {
 	}
 }
 
-void GameLive::api_delayTime(std::function<void(float)> func, float delaySec, const string& key, int repeat) {
-	cocos2d::Director::getInstance()->getScheduler()->schedule(func, &LIVE, 1, repeat, delaySec, false, key);
+void GameLive::api_delayTime(CocoFunc& func, float delaySec, const string& key, void* refer, int repeat) {
+	if (refer == nullptr)
+		refer = &LIVE;
+	cocos2d::Director::getInstance()->getScheduler()->schedule(func, refer, 1, repeat, delaySec, false, key);
 }
-void GameLive::api_undelay(const string &key) {
-	cocos2d::Director::getInstance()->getScheduler()->unschedule(key, &LIVE);
+void GameLive::api_undelay(void* refer, const string &key) {
+	if (refer == nullptr)
+		refer = &LIVE;
+	cocos2d::Director::getInstance()->getScheduler()->unschedule(key, refer);
 }
 
-void GameLive::api_autoAddActionLock(LiveObjPtr obj, float lockAdd) {
-	 float now = PAINT.clock();
-	 float loc = obj->getActionLock();
-	 obj->setActionLock(loc > now ? loc : now + lockAdd);
- }
+void GameLive::api_undelayAll(void* refer) {
+	if (refer == nullptr)
+		refer = &LIVE;
+	cocos2d::Director::getInstance()->getScheduler()->unscheduleAllForTarget(refer);
+}
+
+void GameLive::api_addActionLock(LiveObjPtr obj, float lockAdd) {
+	float now = PAINT.clock();
+	float loc = obj->getActionLock();
+	obj->setActionLock(loc > now ? loc : now + lockAdd);
+}
+float GameLive::api_autoLock(float& lockValue, float timeSec, float delaySec, bool additive, LockType type, CocoFunc& func) {
+	//TODO 规则有点麻烦不是很想动手，要融合各种情况的，查询和可能，还有延时什么的。讨论下来新的locktime需要立刻修改完，别的什么倒是可以延时操作没有冲突
+	float now = PAINT.clock();
+	return now;
+}
+
+JudgeReturn GameObjectJudge::judge(float* keyarray, GameLive& live, GameLiveScene& scene, vector<LiveObjPtr>& objects) {
+	autoTranslate(keyarray);
+step_two:
+	for (auto ind = 0; ind < (int)objects.size(); ind++) {
+		if (objects[ind] == nullptr)
+			continue;
+		setObject(objects[ind]);
+		auto obj = getObjectPtrJudgedNow()->getObj();
+		if (obj == nullptr)
+			continue;
+		GameCommand objcmd;
+		if (obj->isCustomTranslate())
+			objcmd = obj->translate(keyarray);
+		else
+			objcmd = getCmdCache();
+		EventPtr eve;
+		JudgeReturn jud = obj->link(objcmd, eve, *this);
+		if (eve != nullptr)
+			live.api_eventStart(eve, nullptr);
+		switch (jud)
+		{
+		case judgeEnd:
+			return jud;
+			break;
+		case judgeNextObject:
+			continue;
+			break;
+		case judgeNextLayer:
+			return jud;
+			break;
+		case judgePreviousObject:
+			if (ind > 1)
+				ind -= 2;
+			break;
+		case judgeObjectLayer:
+			goto step_two;
+			break;
+		case judgeResetLayer:
+			goto step_two;
+			break;
+		case judgeResetAll:
+			return jud;
+			break;
+		default: // 相当于continue
+			break;
+		}
+	}
+	return judgeEnd;
+}
 
 void GameLive::judge() {
+	GameObjectJudge objJudge(kidHumanCode, GameBase::DEFAULT_COMMAND);
 step_one:
-	if (this->_scene)
-		this->_scene->commandCache = GameBase::DEFAULT_COMMAND;
 	for (int i = _UIUp.size() - 1; i >= 0; i--) {
 		if (_UIUp[i] == nullptr)
 			continue;
@@ -1742,7 +1809,7 @@ step_one:
 			EventPtr eve = nullptr;
 			LiveUIPtr ptt = _UIUp[i];
 			_UIJudgeNow = ptt;
-			JudgeReturn jud = ptt->UI()->action(ptt->id(), this->_keys);
+			JudgeReturn jud = ptt->UI()->action(ptt->id(), this->_keys, objJudge);
 			if (eve != nullptr) {
 				api_eventStart(eve, nullptr);
 			}
@@ -1773,13 +1840,20 @@ step_one:
 	_UIJudgeNow = nullptr;
 
 step_two:
-	this->_objectJudgeNow = nullptr;
-	if (this->_scene) {
-		if (!(this->_scene->commandCache) && this->_scene->defaultTranslator)
-			api_setCommandCache(this->_scene->defaultTranslator->translate(this->keys()));
 
+	if (this->_scene) {
 		vector<LiveObjPtr> objects;
 		this->_scene->kidRangeObjects(objects);
+		auto jud = objJudge.judge(this->keys(), *this, *(this->_scene), objects);
+		if (jud == judgeEnd)
+			return;
+		else if (jud == judgeNextLayer)
+			goto step_three;
+		else if (jud == judgeResetAll)
+			goto step_one;
+		else {
+		}
+		/*
 		for (auto ind = 0; ind < (int)objects.size(); ind++) {
 			this->_objectJudgeNow = objects[ind];
 			ObjPtr obj = this->_objectJudgeNow->getObj();
@@ -1820,9 +1894,8 @@ step_two:
 				else {
 				}
 			}
-		}	
+		}	*/
 	}
-	this->_objectJudgeNow = nullptr;
 
 step_three:
     for (int i = _UIDown.size() - 1; i >= 0; i--) {
@@ -1832,7 +1905,7 @@ step_three:
             EventPtr eve = nullptr;
 			LiveUIPtr ptt = _UIUp[i];
 			_UIJudgeNow = ptt;
-			JudgeReturn jud = ptt->UI()->action(ptt->id(), this->_keys);
+			JudgeReturn jud = ptt->UI()->action(ptt->id(), this->_keys, objJudge);
             if (eve != nullptr) {
                 api_eventStart(eve, nullptr);
             }
@@ -1950,4 +2023,5 @@ bool GameLive::keyCyclePushedOnly(float* keys, vector<GameKeyPress> vgkp, float 
 			keypressedcnt++;
 	return ((int)vgkp.size()) == keypressedcnt;
 }
+
 

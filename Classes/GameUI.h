@@ -49,7 +49,7 @@ public:
 	SHCP_BASE(GameUI);
     virtual LiveCode start();
     virtual string save();
-    virtual JudgeReturn action(LiveCode node, float* keyarray);
+	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge);
     virtual void stop();
 
     UIType& type() {
@@ -76,7 +76,7 @@ class StartPageUI : public GameUI {
 public:
 	SHCP_OVERRIDE(GameUI, StartPageUI);
     virtual LiveCode start() override;
-	virtual JudgeReturn action(LiveCode node, float* keyarray) override;
+	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
 };
 
 class ToolUI : public GameUI {
@@ -87,14 +87,14 @@ public:
 	void toolPaint(LiveCode paper);
 	SHCP_OVERRIDE(GameUI, ToolUI);
 	virtual LiveCode start() override;
-	virtual JudgeReturn action(LiveCode node, float* keyarray) override;
+	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
 };
 
 class KidMoveUI : public GameUI {
 public:
 	SHCP_OVERRIDE(GameUI, KidMoveUI);
 	virtual LiveCode start() override;
-	virtual JudgeReturn action(LiveCode node, float* keyarray) override;
+	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
 };
 
 class BasicMenuTranslator : public GameTranslator {
@@ -124,7 +124,7 @@ public:
 class SoilLinker : public GameLinker{
 public:
 	SHCP_OVERRIDE(GameLinker, SoilLinker);
-	virtual LinkerReturn link(GameCommand) override;
+	virtual LinkerReturn link(GameCommand, GameObjectJudge&) override;
 };
 
 class StartGameEvent : public GameEvent {

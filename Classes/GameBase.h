@@ -203,7 +203,7 @@ public:
 	GameCommand translate(float* arrOfKeys);
 
 	SHCP_BASE(GameObject);
-	virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event);
+	virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event, GameObjectJudge& judge);
 	virtual LiveCode customPaint(LiveCode father, const BlockPos& pos, int dotOrder);
 	// DO NOT call paint/repaint/replace/... on the same object in this method
 	virtual void afterPaint(LiveCode obj);
@@ -260,7 +260,7 @@ public:
     }
     
 	SHCP_BASE(GameLinker);
-    virtual LinkerReturn link(GameCommand);
+	virtual LinkerReturn link(GameCommand gcmd, GameObjectJudge& judge);
 
     virtual ~GameLinker() {
     }
@@ -374,7 +374,7 @@ public:
 	static const int WALK = 1, RUN = 2, OTHERCMD = 0;
 	// return 1:walk, 2:run, 0:others
 	static int cmdWalkOrRun(GameCommand cmd);
-	static GameCommand toolToCmd(BaseCode tool);
+	//static GameCommand toolToCmd(BaseCode tool);
 	static PlantCode stuffToPlant(BaseCode plantStuff);
 
     ObjPtr getStuff(BaseCode code);

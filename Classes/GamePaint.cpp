@@ -110,19 +110,27 @@ LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, fl
 		if (timeSec == 0 && delaySec == 0)
 			object->setOpacity(newalpha * 255);
 		else {
-			float timePassed = 0;
-			float delta = newalpha - oldalpha;
+			float *timePassed = new float;
+			*timePassed = 0;
+			float *timeUse = new float;
+			*timeUse = timeSec;
+			float *delta = new float; 
+			*delta = newalpha - oldalpha;
 			int repeat = timeSec / LIVE.api_getLoopFreq();
-			auto sch = [object, &timePassed, &timeSec, &delta, &oldalpha, &newalpha](float dt) {
-				timePassed += dt;
-				if (timePassed + dt >= timeSec)
+			auto sch = [object, timePassed, timeUse, delta, oldalpha, newalpha](float dt) {
+				*timePassed += dt;
+				if (*timePassed + dt >= *timeUse) {
 					object->setOpacity(newalpha * 255);
+					delete timePassed;
+					delete timeUse;
+					delete delta;
+				}
 				else {
-					float alpha = oldalpha + delta / timeSec * timePassed;
+					float alpha = oldalpha + *delta / *timeUse * *timePassed;
 					object->setOpacity(alpha * 255);
 				}
 			};
-			cocos2d::Director::getInstance()->getScheduler()->schedule(sch, object, LIVE.api_getLoopFreq(), repeat, delaySec, false, "AlphaFade" + std::to_string((int)object));
+			cocos2d::Director::getInstance()->getScheduler()->schedule(sch, object, LIVE.api_getLoopFreq(), repeat - 1, delaySec, false, "AlphaFade" + std::to_string((int)object));
 		}
 	}
     return object;

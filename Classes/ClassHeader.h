@@ -42,6 +42,8 @@ enum JudgeReturn {
     judgeEnd, judgeNextObject, judgeNextLayer, judgePreviousObject, judgeObjectLayer, judgeResetLayer, judgeResetAll
 };
 
+enum LockType { doNothing, doAfter, doBreak };
+
 enum GameKeyPress {
 	buttonEmpty,
 	buttonUp,
@@ -101,11 +103,6 @@ enum GameCommand {
     cancel,
 	menu,
 	detail,
-
-	useHoe,
-	useWaterCan,
-	usePotatoSeed,
-
 };
 
 enum StuffCode {
@@ -184,6 +181,7 @@ typedef float PxType;
 typedef float NumType;
 typedef int BaseCode;
 typedef cocos2d::Node* LiveCode;
+typedef std::function<void(float)> CocoFunc;
 
 class GameLive;
 class GameBase;
@@ -473,6 +471,7 @@ class GameHuman;
 class GameLiveObject;
 class GameLiveScene;
 class GameLiveUI;
+class GameObjectJudge;
 
 typedef std::shared_ptr<GameObject> ObjPtr;
 typedef std::weak_ptr<GameObject> ObjWeak;

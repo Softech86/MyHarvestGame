@@ -247,9 +247,9 @@ GameCommand GameObject::translate(float* arrOfKeys) {
 		return GameCommand::emptyCmd;
 }
 
-JudgeReturn GameObject::link(GameCommand gcmd, EventPtr& out_event) {
+JudgeReturn GameObject::link(GameCommand gcmd, EventPtr& out_event, GameObjectJudge& judge) {
     if (this->linker() != nullptr) {
-        LinkerReturn sec = this->linker()->link(gcmd);
+        LinkerReturn sec = this->linker()->link(gcmd, judge);
         out_event = sec.eve;
         return sec.judge;
     } else {
@@ -369,7 +369,7 @@ LinkerPtr GameLinker::create(BaseCode code, std::function<LinkerReturn(GameComma
     return pt;
 }
 
-LinkerReturn GameLinker::link(GameCommand gcmd) {
+LinkerReturn GameLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
     return convert(gcmd);
 }
 
@@ -385,24 +385,24 @@ int GameBase::cmdWalkOrRun(GameCommand cmd) {
 	else
 		return OTHERCMD;
 }
-
-GameCommand GameBase::toolToCmd(BaseCode tool) {
-	if (tool > toolStart && tool < toolEnd) {
-		switch (tool) {
-		case toolHoe:
-			return useHoe;
-		case toolWaterCan:
-			return useWaterCan;
-		case toolPotatoSeed:
-			return usePotatoSeed;
-			//TODO 未完待续
-		default:
-			return emptyCmd;
-		}
-	}
-	else
-		return emptyCmd;
-}
+//
+//GameCommand GameBase::toolToCmd(BaseCode tool) {
+//	if (tool > toolStart && tool < toolEnd) {
+//		switch (tool) {
+//		case toolHoe:
+//			return useHoe;
+//		case toolWaterCan:
+//			return useWaterCan;
+//		case toolPotatoSeed:
+//			return usePotatoSeed;
+//			//TODO 未完待续
+//		default:
+//			return emptyCmd;
+//		}
+//	}
+//	else
+//		return emptyCmd;
+//}
 
 PlantCode GameBase::stuffToPlant(BaseCode plantStuff) {
 	if (plantStuff > plantStuffStart && plantStuff < plantStuffEnd) {
