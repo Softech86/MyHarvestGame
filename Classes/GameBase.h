@@ -200,6 +200,8 @@ public:
 	GameObject* const setDropable(bool drop) { this->_dropable = drop; return this; }
 	GameObject* const setQuality(int quality) { this->_quality = quality; return this; }
 
+	int getCount() { return this->_count; }
+
 	GameCommand translate(float* arrOfKeys);
 
 	SHCP_BASE(GameObject);

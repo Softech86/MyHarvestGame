@@ -446,6 +446,8 @@ public:
 	LiveObjPtr getLive() { return this->_liveObj; }
 	void setLive(LiveObjPtr liveObj) { this->_liveObj = liveObj; }
 	void removeLive(){ this->_liveObj = nullptr; }
+	vector<ObjPtr>& getPack() { return this->_pack; }
+	ObjPtr getHand() { return this->_handObject; }
 
 	void getRange(BlockPos& out_start, BlockPos& out_size);
 	GameCommand toolUse() { 
