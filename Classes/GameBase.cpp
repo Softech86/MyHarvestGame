@@ -11,6 +11,7 @@ const float			GameBase::KID_MOVE_SPEED_IN_BIG_BLOCKS = 6.0f;
 const BlockType		GameBase::KID_STEP = 1;
 const float			GameBase::KID_RUN_COMPARED_TO_WALK = 2.5f;
 const float			GameBase::USE_TOOL_TIME = 0.5f;
+const string		GameBase::EMPTY_STRING = "";
 
 const int			GameBase::DETECT_SPLIT = 2;
 const GameCommand	GameBase::DEFAULT_COMMAND = GameCommand::emptyCmd;
@@ -19,6 +20,8 @@ void GameBase::init() {
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Tools");
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Humans");
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Plants");
+	cocos2d::FileUtils::getInstance()->addSearchPath("res/Stuff");
+
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
 	GameTranslator::create<BasicMoveTranslator>(basicMoveTranslator, &transData);
@@ -26,6 +29,7 @@ void GameBase::init() {
 
     // Linker Create
 	GameLinker::create<SoilLinker>(soilLinkerCode, &linkerData);
+	GameLinker::create<BedLinker>(bedLinkerCode, &linkerData);
 
     // Object Create
     GameObject::create(GameObject::ground, farmPicCode, "farmBackground", "", BlockPos(PxPos(960, 640)), WalkType::allWalk, &stuffData, "FarmBackground.csb")
@@ -41,6 +45,15 @@ void GameBase::init() {
 		->setPickable(false)->setDropable(false);
 	soilComb->setChildrenLinker(BASE.getLinker(soilLinkerCode));
 
+	ObjPtr bedComb = GameObject::create(GameObject::combStuff, bedCode, "bed", "", BigBlockPos(2, 4), WalkType::allWalk, &stuffData);
+	bedComb->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::furniture, bedDownCode, "bedDown", "", BigBlockPos(2, 4), WalkType::allWalk, &stuffData, "BedDown.csb", bedComb)
+		->setPickable(false)->setDropable(false);
+	bedComb->childrenPos().push_back(BlockPos::zero);
+	GameObject::create(GameObject::ground, bedUpCode, "bedUp", "", BigBlockPos(2, 4), WalkType::allWalk, &stuffData, "BedUp.csb", bedComb)
+		->setPickable(false)->setDropable(false);
+	bedComb->childrenPos().push_back(BlockPos::zero);
+	bedComb->setChildrenLinker(BASE.getLinker(bedLinkerCode));
 
 	GameObject::create(GameObject::BigType::stuff, toolHoe, "锄头", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Hoe.csb")
 		->setPickable(false)->setDropable(false);
@@ -49,8 +62,16 @@ void GameBase::init() {
 	GameObject::create(GameObject::BigType::stuff, toolPotatoSeed, "土豆种子", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "PotatoSeed.csb")
 		->setPickable(false)->setDropable(false)->setQuality(1);
 
-	GameObject::create(GameObject::BigType::seed, stuffPotatoSeed, "地里的土豆种子", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Seed.csb")
+	ObjPtr potatoComb = GameObject::create(GameObject::combStatue, stuffPotatoStart, "", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData);
+	potatoComb->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::BigType::seed, stuffPotatoWithered, "枯萎的土豆", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WitherPotato.csb", potatoComb)
 		->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::BigType::seed, stuffPotatoSeed, "地里的土豆种子", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Seed.csb", potatoComb)
+		->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::BigType::plant, stuffPotatoLittle, "地里的土豆苗", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "LittlePlant.csb", potatoComb)
+		->setPickable(false)->setDropable(false);
+
+	
 
 	// 
 	string kidfacing[] = { "KidFace.csb",
@@ -74,8 +95,12 @@ void GameBase::init() {
 			farmsc->children().push_back(getStuff(soilOriginCode));
 			farmsc->childrenPos().push_back(BigBlockPos(i, j));
 		}
+	farmsc->children().push_back(getStuff(bedCode));
+	farmsc->childrenPos().push_back(BigBlockPos(14, 4));
 
 	// Plant Create
+	GamePlant::create(PlantCode::plantPotato, "", potatoComb, vector<int>{0, 0, 1}, vector<SeasonType> {haru}, &plantData);
+
 
 	// Human Create
 	GameHuman::create(kidHumanCode, "kidSelf", 100, &humanData);
@@ -87,6 +112,7 @@ void GameBase::init() {
 
 	// Event Create
 	GameEvent::create<StartGameEvent>(startGameEventCode, &eventData);
+	GameEvent::create<DayPassEvent>(dayPassEventCode, &eventData);
 }
 
 BlockPos BlockPos::dirToBlock(Direction dir) {
@@ -289,6 +315,22 @@ bool GameObject::onFaceChange(LiveObjPtr obj, BlockPos::Direction oldface, Block
 	}
 }
 
+const string& GamePlant::getCSB(int stage) {
+	auto temp = statueObj.lock();
+	if (temp == nullptr)
+		return BASE.EMPTY_STRING;
+	if (stage >= 0 && stage < (int)(temp->children().size())) {
+		auto tt = (temp->children()[stage]).lock();
+		if (tt == nullptr)
+			return BASE.EMPTY_STRING;
+		else
+			return tt->picture();
+	}
+	else
+		return BASE.EMPTY_STRING;
+}
+
+
 ObjPtr GameBase::getStuff(BaseCode code) {
     if (code >= 0 && code < (int) stuffData.size())
         return stuffData[code];
@@ -301,7 +343,7 @@ const string& GameBase::getStuffCSB(BaseCode code) {
 	if (ptr)
 		return ptr->picture();
 	else
-		return "";
+		return EMPTY_STRING;
 }
 
 ObjPtr GameBase::getScene(BaseCode code) {
@@ -406,7 +448,7 @@ int GameBase::cmdWalkOrRun(GameCommand cmd) {
 
 PlantCode GameBase::stuffToPlant(BaseCode plantStuff) {
 	if (plantStuff > plantStuffStart && plantStuff < plantStuffEnd) {
-		if (plantStuff >= stuffPotatoWithered && plantStuff <= stuffPotatoHarvest)
+		if (plantStuff >= stuffPotatoStart && plantStuff <= stuffPotatoHarvest)
 			return plantPotato;
 		else
 			return plantStart;

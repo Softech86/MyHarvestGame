@@ -42,7 +42,7 @@ enum JudgeReturn {
     judgeEnd, judgeNextObject, judgeNextLayer, judgePreviousObject, judgeObjectLayer, judgeResetLayer, judgeResetAll
 };
 
-enum LockType { doNothing, doAfter, doBreak };
+enum LockType { doNothing, doAfter, doBreak, doClearBreak, doOverwrite };
 
 enum GameKeyPress {
 	buttonEmpty,
@@ -121,7 +121,12 @@ enum StuffCode {
     soilHoedCode,
     soilWateredCode,
 
+	bedCode,
+	bedUpCode,
+	bedDownCode,
+
 	plantStuffStart,
+	stuffPotatoStart,
 	stuffPotatoWithered,
 	stuffPotatoSeed, 
 	stuffPotatoLittle,
@@ -162,6 +167,7 @@ enum TransCode {
 
 enum LinkerCode {
 	soilLinkerCode,
+	bedLinkerCode,
 };
 
 enum UICode {
@@ -172,6 +178,7 @@ enum UICode {
 
 enum EventCode {
 	startGameEventCode,
+	dayPassEventCode,
 };
 
 

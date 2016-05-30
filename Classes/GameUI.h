@@ -127,8 +127,20 @@ public:
 	virtual LinkerReturn link(GameCommand, GameObjectJudge&) override;
 };
 
+class BedLinker : public GameLinker {
+public:
+	SHCP_OVERRIDE(GameLinker, BedLinker);
+	virtual LinkerReturn link(GameCommand, GameObjectJudge&) override;
+};
+
 class StartGameEvent : public GameEvent {
 public:
 	SHCP_OVERRIDE(GameEvent, StartGameEvent);
+	virtual bool start(LiveObjPtr obj) override;
+};
+
+class DayPassEvent : public GameEvent {
+public:
+	SHCP_OVERRIDE(GameEvent, DayPassEvent);
 	virtual bool start(LiveObjPtr obj) override;
 };

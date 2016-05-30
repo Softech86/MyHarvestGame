@@ -316,8 +316,9 @@ public:
 	GamePlant() {};
 	GamePlant(BaseCode code, const string& name, int statueCount, ObjWeak statueObj, const vector<int>& waterNeeded, const vector<SeasonType>& season)
 	: code(code), name(name), statueCount(statueCount), statueObj(statueObj), waterNeeded(waterNeeded), season(season) {}
-	static PlantPtr create(BaseCode code, const string& name, int statueCount, ObjWeak statueObj, const vector<int>& waterNeeded, const vector<SeasonType>& season, vector<PlantPtr>* container = nullptr) {
-		PlantPtr pt(new GamePlant(code, name, statueCount, statueObj, waterNeeded, season));
+	static PlantPtr create(BaseCode code, const string& name, ObjWeak statueObj, const vector<int>& waterNeeded, const vector<SeasonType>& season, vector<PlantPtr>* container = nullptr) {
+		auto temp = statueObj.lock();
+		PlantPtr pt(new GamePlant(code, name, (temp != nullptr ? temp->children().size() : 0), statueObj, waterNeeded, season));
 		T_push(container, pt, code);
 		return pt;
 	}
@@ -333,6 +334,20 @@ public:
 		if (isWithered(water, sun, currentSeason))
 			return WITHERED_INDEX;
 		return levelUpRule(water, sun, currentSeason);
+	}
+
+	const string& getCSB(int stage);
+
+	ObjPtr getObject(int stage) {
+		auto temp = statueObj.lock();
+		if (temp == nullptr)
+			return nullptr;
+		if (stage >= 0 && stage < (int)(temp->children().size())) {
+			auto tt = (temp->children()[stage]).lock();
+			return tt;
+		}
+		else
+			return nullptr;
 	}
 
 	// 这样子的话就算要追加品质系统也就是一个数组的事情了
@@ -371,6 +386,7 @@ public:
 	static const int DETECT_SPLIT;
 	static const GameCommand DEFAULT_COMMAND;
 	static const float USE_TOOL_TIME;
+	static const string EMPTY_STRING;
 
     void init();
 	static const int WALK = 1, RUN = 2, OTHERCMD = 0;

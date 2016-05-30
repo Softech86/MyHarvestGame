@@ -53,7 +53,14 @@ JudgeReturn KidMoveUI::action(LiveCode node, float* keyarray, GameObjectJudge& j
 		GameCommand gcmd = this->control()->translate(keyarray);
 		if (gcmd == GameCommand::emptyCmd)
 			return JudgeReturn::judgeNextObject;
-		float now = PAINT.clock();
+		auto iswalk = BASE.cmdWalkOrRun(gcmd);
+		if (iswalk == BASE.WALK)
+			LIVE.api_kidWalkStep(BlockPos::cmdToDir(gcmd));
+		else if (iswalk == BASE.RUN)
+			LIVE.api_kidRunStep(BlockPos::cmdToDir(gcmd));
+		else
+			return judgeEnd;
+		/*float now = PAINT.clock();
 		LiveObjPtr kid = LIVE.api_kidGet();
 		if (kid != nullptr) {
 			if (LIVE.api_getActionLock(kid) > now)
@@ -70,7 +77,7 @@ JudgeReturn KidMoveUI::action(LiveCode node, float* keyarray, GameObjectJudge& j
 					LIVE.api_setActionLock(kid, now + LIVE.api_getScenePtr()->getKidRunTime(dist));
 				}
 			}
-		}
+		}*/
 	}
 	return JudgeReturn::judgeEnd;
 }
@@ -105,37 +112,32 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray, GameObjectJudge& judg
 	if (LIVE.api_hasScene()) {
 		GameCommand gcmd = this->control()->translate(keyarray);
 		if (gcmd == useTool) {
-			// 动作锁的检测
-			float now = PAINT.clock();
 			LiveObjPtr kid = LIVE.api_kidGet();
-			if (kid != nullptr) {
-				if (LIVE.api_getActionLock(kid) > now)
-					return JudgeReturn::judgeEnd;
-				else
-					LIVE.api_setActionLock(kid, now + BASE.USE_TOOL_TIME);
+			if (kid == nullptr)
+				return judgeEnd;
+			CocoFunc sch = [&judge](float dt) {
 				auto cmdtemp = LIVE.api_getKidHuman()->toolUse();
 				if (cmdtemp != emptyCmd)
 					judge.setCmdCache(cmdtemp);
+			};
+			if (LIVE.api_autoActionLock(kid, BASE.USE_TOOL_TIME, doNothing, sch, "useTool"))
 				return judgeNextLayer;
-			}
+			else
+				return judgeEnd;
 		}
 		else if (gcmd == switchTool) {
-			// 动作锁的检测
-			float now = PAINT.clock();
 			LiveObjPtr kid = LIVE.api_kidGet();
-			if (kid != nullptr) {
-				if (LIVE.api_getActionLock(kid) > now)
-					return JudgeReturn::judgeEnd;
-				else
-					LIVE.api_setActionLock(kid, now + BASE.USE_TOOL_TIME);
-
+			if (kid == nullptr)
+				return judgeEnd;
+			CocoFunc sch = [this, node](float dt) {
 				int toolusing = LIVE.api_getKidHuman()->toolGet();
 				if (toolusing + 1 == toolEnd)
 					LIVE.api_getKidHuman()->toolSet(toolStart);
 				else
 					LIVE.api_getKidHuman()->toolSet(toolusing + 1);
 				toolPaint(node);
-			}
+			}; 
+			LIVE.api_autoActionLock(kid, BASE.USE_TOOL_TIME, doNothing, sch, "switchTool");
 			return judgeEnd;
 		}
 		else
@@ -283,6 +285,17 @@ LinkerReturn SoilLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 	return result;
 }
 
+LinkerReturn BedLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
+	LinkerReturn result;
+	result.eve = nullptr;
+	result.judge = judgeNextObject;
+	if (gcmd == GameCommand::pickNLook) {
+		result.eve = BASE.getEvent(dayPassEventCode);
+		result.judge = judgeEnd;
+	}
+	return result;
+}
+
 bool StartGameEvent::start(LiveObjPtr obj) {
 	LIVE.api_sceneICD(farmSceneCode, BlockPos(400, 400), BlockPos(PxPos(960, 640)));
 	LIVE.api_kidSet(kidNormalCode, BigBlockPos(3, 1), true);
@@ -319,6 +332,12 @@ bool StartGameEvent::start(LiveObjPtr obj) {
 	LIVE.api_UIStop(startPageCode);
 	LIVE.api_UIStart(kidMoveUICode);
 	LIVE.api_UIStart(toolUICode);
-	LIVE.api_getScenePtr()->allDimFrom();
+	LIVE.api_allDimFrom();
+	return true;
+}
+
+bool DayPassEvent::start(LiveObjPtr obj) {
+	//TODO messageBox
+	LIVE.api_dayPass();
 	return true;
 }
