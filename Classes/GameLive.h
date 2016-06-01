@@ -30,6 +30,7 @@ private:
 	float _movingUntil = 0;
 	float _alphaUntil = 0;
 	float _lockUntil = 0;
+	float _animeUntil = 0;
 	BlockPos::Direction _face = BlockPos::Direction::five;
     vector<LiveObjWeak> _inBind;
 	vector<LiveObjWeak> _outBind;
@@ -44,10 +45,11 @@ private:
     : GameLiveObject(isScene ? BASE.getScene(code) : BASE.getStuff(code), true) {
     }
 
-
+public:
     ObjPtr getObj() {
         return this->_obj;
     }
+private:
     void setObj(ObjPtr obj) {
         this->_obj = ObjPtr(obj->SHCP());
     }
@@ -105,7 +107,7 @@ public:
 	BlockPos MPC() {
 		return this->MP() + this->getCenter();
 	}
-private:
+public:
 	BlockPos::Direction getFace() { return this->_face; }
 	void setFace(LiveObjPtr selfptr, BlockPos::Direction face) {
 		if (selfptr != nullptr) {
@@ -118,10 +120,13 @@ private:
     BlockPos paintPos();
 	void decodePaintPos(BlockPos pos);
 	int paintLayerOrder(int dotOrder);
+	float getZorder() { return this->_order; }
 	void setZOrder(float Zorder);
 	void setZOrder(float Zorder, float timeSec, float delaySec);
 	void autoZOrder(int dotOrder);
 	void autoZOrder(int dotOrder, float timeSec, float delaySec);
+	float getAlpha() { return this->_alpha; }
+	void setAlpha(float alpha, float timeSec = 0, float delaySec = 0);
 
     LiveCode paint(LiveCode father, int dotOrder);
     void erase(LiveCode father);
@@ -182,6 +187,8 @@ private:
     map<LiveCode, LiveObjPtr> dict;
     vector<LiveObjPtr> nodeCache;
 
+	float _animeUntil = 0;
+
     // 6 big blocks per sec
 	float walkSpeed = GameBase::KID_MOVE_SPEED_IN_BIG_BLOCKS * BIG_TO_SMALL;
     // 1 small block per step
@@ -198,6 +205,7 @@ private:
 	static int insertPositionCompare(LiveObjPtr lhs, LiveObjPtr rhs);
 	static LiveDot::iterator findInsertPosition(LiveDot& ld, LiveObjPtr obj);
 	static int liveDotInsert(LiveDot &ld, LiveObjPtr obj);
+	static int liveDotOrderFind(LiveDot &ld, LiveObjPtr obj);
 
 	BlockPos validize(const BlockPos& input);
 	void rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPtr, int>& out_objects, LiveObjPtr itself);
@@ -224,6 +232,9 @@ private:
     void mapRemoveOutBind(LiveObjPtr ptr, bool recursive = false);
     int mapMove(LiveObjPtr ptr, const BlockPos& vec, bool recursive = false);
     int mapReplace(LiveObjPtr oldptr, ObjPtr newobj);
+
+	int getDotOrder(LiveObjPtr ptr);
+	void dotZOrderRefresh(const BlockPos& pos);
 
     void dictAdd(LiveCode code, LiveObjPtr obj);
     void dictRemove(LiveCode code);
@@ -306,7 +317,7 @@ public:
     void setScene(BaseCode scenecode);
 
     // add a stuff to the scene
-    LiveObjPtr add(ObjPtr ptr, const BlockPos& margin, bool copy = true);
+    LiveObjPtr add(ObjPtr ptr, const BlockPos& margin, bool copy = true, int z = 0);
     // add a stuff to the scene, this LiveObject should not be painted at the moment
     void add(LiveObjPtr j);
     void remove(LiveObjPtr ptr, bool recursive = true);
@@ -345,9 +356,9 @@ public:
  //   void kidRemove(bool recursive = true);
  //   void kidReplace(ObjPtr newkid);
 
-	void humanAddObject(BaseCode humancode, ObjPtr obj, const BlockPos& marginRelative);
+	LiveObjPtr humanAddObject(BaseCode humancode, ObjPtr obj, const BlockPos& marginRelative, bool copy = true, int z = 4);
 
-	void switchFromSurroundingsToHuman(BaseCode humancode, LiveObjPtr obj, const BlockPos& margin, bool recursive = false);
+	void switchFromSurroundingsToHuman(BaseCode humancode, LiveObjPtr obj, const BlockPos& margin, bool recursive = false, int z = 4);
 	void switchFromHumanToSurroundings(LiveObjPtr obj, const BlockPos& margin, bool recursive = false);
 
     void allDim(bool black = true, float timeSec = 1);
@@ -383,15 +394,18 @@ public:
 
 class GameTime {
 public:
-	SeasonType season = haru;
+	int year = 1;
+	int season = SeasonType::haru;
 	int date = 1;
 	int hour = 6;
 	int minute = 0;
 
 	GameTime() {}
 
-	void onTimePass();
-	void onDayPass();
+	void timeAdd(int minutes = 10);
+	void hourAdd(int hours = 1);
+	void dayAdd(int days = 1);
+	void seasonAdd(int season = 1);
 };
 
 class GameLivePlant {
@@ -419,7 +433,7 @@ public:
 	int getStage() { return this->_stage; }
 	void setStage(int stage) { this->_stage = stage; _refresh = false; }
 	void setRefresh(bool refresh) { this->_refresh = refresh; }
-	BlockPos getPosition() const { return this->_plantPos; }
+	BlockPos getMargin() const { return this->_plantPos; }
 	const string& getCSB() const;
 	ObjPtr getObject() const;
 
@@ -433,8 +447,10 @@ class GameLiveHuman {
 	LiveObjPtr _liveObj = nullptr; // 不显示的时候这项恢复到默认值
 	ObjPtr _handObject = nullptr;
 	vector<ObjPtr> _pack;
+	LiveObjPtr _handObjLive = nullptr;
 	BaseCode _tool = toolStart;
 	int _toolCount = 1;
+	int _packMaxSize = 12;
 
 	string _name;
 	int _energy = 100;
@@ -469,6 +485,56 @@ public:
 	void removeLive(){ this->_liveObj = nullptr; }
 	vector<ObjPtr>& getPack() { return this->_pack; }
 	ObjPtr getHand() { return this->_handObject; }
+	bool setHand(const ObjPtr& obj) {
+		if (this->_handObject == nullptr) {
+			this->_handObject = obj;
+			return true;
+		}
+		else
+			return false;
+	}
+	ObjPtr dropHand() {
+		if (this->_handObject != nullptr && this->_handObject->isDropable()) {
+			int cnt = 0;
+			if ((cnt = this->_handObject->getCount()) > 0) {
+				this->_handObject->setCount(cnt - 1);
+			}
+			else {
+				this->_handObject = nullptr;
+				return nullptr;
+			}
+			ObjPtr result;
+			if (cnt == 0) {
+				result = _handObject;
+				result->setCount(1);
+				this->_handObject = nullptr;
+			}
+			else {
+				result = ObjPtr(this->_handObject->SHCP());;
+			}
+			result->setCount(1);
+			return result;
+		}
+		else
+			return nullptr;
+	}
+	void setHandLive(LiveObjPtr obj) { this->_handObjLive = obj; }
+	LiveObjPtr getHandLive() { return this->_handObjLive; }
+	bool handIsEmpty() { 
+		if (_handObject == nullptr)
+			return true;
+		else if (_handObject->getCount() == 0) {
+			_handObject = nullptr;
+			return true;
+		}
+		else
+			return false;
+	}
+
+	ObjPtr* hasStuffInPack(ObjPtr obj);
+	bool putIntoPack();
+
+	int getToolCount() { return this->_toolCount; }
 
 	void getRange(BlockPos& out_start, BlockPos& out_size);
 	GameCommand toolUse() { 
@@ -503,12 +569,13 @@ class GameObjectJudge {
 	LiveObjPtr _objJudged = nullptr;
 	GameCommand _cmdcache = emptyCmd;
 	TransPtr _translator = BASE.getTranslator(basicObjectTranslator);
+	GameLive* _live = nullptr;
 
 private:
 	void setObject(LiveObjPtr obj) { this->_objJudged = obj; }
 public:
 	GameObjectJudge() {}
-	GameObjectJudge(BaseCode humancode, GameCommand cmdcache) : _humancode(humancode), _cmdcache(cmdcache) {}
+	GameObjectJudge(GameLive* live, BaseCode humancode, GameCommand cmdcache) : _live(live), _humancode(humancode), _cmdcache(cmdcache) {}
 
 	LiveObjPtr getObjectPtrJudgedNow() const { return this->_objJudged; }
 	LiveCode getObjectNodeJudgedNow() {
@@ -526,6 +593,7 @@ public:
 	GameCommand getCmdCache() { return this->_cmdcache; }
 	void setCmdCache(GameCommand cmdcache) { this->_cmdcache = cmdcache; }
 	BaseCode getHumanCode() { return this->_humancode; }
+	LiveObjPtr getHumanPtr();
 	TransPtr setTranslator(TransPtr tr) { this->_translator = tr; }
 
 	void translate(float* keyarray) {
@@ -536,7 +604,7 @@ public:
 		if (this->_cmdcache == emptyCmd)
 			translate(keyarray);
 	}
-	JudgeReturn judge(float* keyarray, GameLive& live, GameLiveScene& scene, vector<LiveObjPtr>& objects);
+	JudgeReturn judge(float* keyarray, GameLiveScene& scene, vector<LiveObjPtr>& objects);
 };
 
 class GameLiveCreature {
@@ -587,18 +655,22 @@ public:
 	bool setKidPtr(LiveObjPtr obj) { return setHumanPtr(kidHumanCode, obj); }
 
 	// Plant Related
-	void addPlant(BaseCode plant, BaseCode sceneCode, const BlockPos& position) {
+	bool addPlant(BaseCode plant, BaseCode sceneCode, const BlockPos& margin) {
 		vector<GameLivePlant>* temp;
 		if ((temp = getPlants(sceneCode)) != nullptr) {
-			temp->emplace_back(plant, sceneCode, position);
+			if (hasPlant(sceneCode, margin))
+				return false;
+			temp->emplace_back(plant, sceneCode, margin);
+			return true;
 		}
+		return false;
 	}
 private:
-	static vector<GameLivePlant>::iterator _findPlant(vector<GameLivePlant>& container, const BlockPos& position);
-	static bool _removePlant(vector<GameLivePlant>& container, const BlockPos& position);
+	static vector<GameLivePlant>::iterator _findPlant(vector<GameLivePlant>& container, const BlockPos& margin);
+	static bool _removePlant(vector<GameLivePlant>& container, const BlockPos& margin);
 public:
-	bool hasPlant(BaseCode sceneCode, const BlockPos& position);
-	bool removePlant(BaseCode sceneCode, const BlockPos& position);
+	bool hasPlant(BaseCode sceneCode, const BlockPos& margin);
+	bool removePlant(BaseCode sceneCode, const BlockPos& margin);
 
 	void removeAllHumanLive() {
 		for (int i = humanStart + 1; i < humanEnd; i++) {
@@ -613,6 +685,9 @@ public:
 
 class GameLive {
 public:
+	enum ActionResult { timeBlocked, done, cannotDo };
+	static const int DELEGATE_ROLLBACK = -1;
+
     static const int LOOP_FREQ_MS = 20;
     static const int LOOP_DEVATION_MS = 5;
     static const int KEY_COUNT = 20;
@@ -630,6 +705,9 @@ private:
     float* _keys = nullptr;
 	LiveUIPtr _UIJudgeNow = nullptr;
 	LiveCode _codeDim = nullptr;
+	float _animeUntil = 0;
+
+	vector<GameLiveScene*> _trash;
 
 public:
 	bool noPressStillJudge = false;
@@ -663,12 +741,12 @@ private:
 public:
     bool keyPushedOnly(float* keyarray, GameKeyPress gkp);
     bool keyPushedOnly(float* keyarray, vector<GameKeyPress> vgkp);
-    bool keyJustPushedOnly(float* keyarray, GameKeyPress gkp);
-    bool keyJustPushedOnly(float* keyarray, vector<GameKeyPress> vgkp);
-    bool keyCyclePushedOnly(float* keyarray, GameKeyPress gkp, float cycleSec);
-    bool keyCyclePushedOnly(float* keyarray, vector<GameKeyPress> vgkp, float cycleSec);
-	bool keyPushed(float* keyarray, GameKeyPress gkp);
-	bool keyPushed(float* keyarray, vector<GameKeyPress> vgkp);
+    bool keyJustPushed(float* keyarray, GameKeyPress gkp, bool only);
+	bool keyJustPushed(float* keyarray, vector<GameKeyPress> vgkp, bool only);
+	bool keyCyclePushed(float* keyarray, GameKeyPress gkp, float cycleSec, bool only);
+	bool keyCyclePushed(float* keyarray, vector<GameKeyPress> vgkp, float cycleSec, bool only);
+	bool keyPushed(float* keyarray, GameKeyPress gkp, bool only);
+	bool keyPushed(float* keyarray, vector<GameKeyPress> vgkp, bool only);
 
 	float api_getLoopFreq() { return this->_loopfreq; }
 	
@@ -683,15 +761,6 @@ public:
     void api_eventStart(EventPtr eve, LiveObjPtr obj);
 
     void api_close();
-
-	/*
-	GameCommand api_getCommandCache() {
-		return this->_scene->commandCache;
-	}
-
-	void api_setCommandCache(GameCommand cmd) {
-		this->_scene->commandCache = cmd;
-	}*/
 
     bool api_hasScene() {
         return this->_scene != nullptr;
@@ -746,6 +815,7 @@ public:
     void api_sceneCalculate();
     void api_sceneICD(BaseCode sceneCodev, const BlockPos& mazeSize, const BlockPos& windowSize);
 	void api_sceneClose();
+	void api_trashClearWillTakeALongTime() { for (auto sc : _trash) delete sc; _trash.clear(); }
 
 	void api_dayPass();
 
@@ -766,8 +836,8 @@ public:
 	void api_humanSet(BaseCode humancode, ObjPtr ptr, const BlockPos& pos, bool focus, bool copy = true);
 	void api_humanWalk(BaseCode humancode, const BlockPos& vec);
 	void api_humanRun(BaseCode humancode, const BlockPos& vec);
-	void api_humanWalkStep(BaseCode humancode, BlockPos::Direction dir);
-	void api_humanRunStep(BaseCode humancode, BlockPos::Direction dir);
+	void api_humanWalkStep(BaseCode humancode, BlockPos::Direction dir, LockType lock = doNothing);
+	void api_humanRunStep(BaseCode humancode, BlockPos::Direction dir, LockType lock = doNothing);
 
 	void api_kidSet(BaseCode stuffCode, const BlockPos& pos, bool focus);
     void api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus, bool copy = true);
@@ -776,18 +846,32 @@ public:
     void api_kidWalkStep(BlockPos::Direction dir);
 	void api_kidRunStep(BlockPos::Direction dir);
 
-    // void api_kidPick(LiveObjPtr stuff);
-    // void api_kidJump(BaseCode sceneCode, BlockPos blocksize, BlockPos kidpos);
+private:
+	int pickZValue(ObjPtr human);
+	BlockPos pickPosition(LiveObjPtr human);
+	BlockPos dropPosition(LiveObjPtr human);
+	void pickAnimation(BaseCode humancode, LiveObjPtr stuff);
+	void dropAnimation(BaseCode humancode, LiveObjPtr stuff, const BlockPos& dropPosition);
 
-	void api_addObject(BaseCode stuffCode, const BlockPos& margin, bool autoAdd = true);
+public:
+	ActionResult api_humanPick(BaseCode humancode, LiveObjPtr stuff);
+	ActionResult api_humanDrop(BaseCode humancode);
+	ActionResult api_kidPick(LiveObjPtr stuff);
+    // void api_kidJump(BaseCode sceneCode, BlockPos blocksize, BlockPos kidpos);
+	LiveObjPtr api_humanAddObject(BaseCode humancode, ObjPtr obj, const BlockPos& marginRelative, bool copy = true, int z = 0);
+
+	LiveObjPtr api_addObject(BaseCode stuffCode, const BlockPos& margin, bool autoAdd = true, int z = 0);
+	LiveObjPtr api_addObject(ObjPtr object, const BlockPos& margin, bool autoAdd = true, bool copy = true, int z = 0);
+	void api_moveObject(LiveObjPtr obj, const BlockPos& vec, MoveType type, float timeSec, bool recursive = true);
 	void api_replaceObject(LiveObjPtr obj, ObjPtr ptr);
 	void api_changePicture(LiveObjPtr obj, const string& newcsb);
+	void api_removeObject(LiveObjPtr obj, bool recursive = true, bool autoRemove = true);
 
 	bool api_hasPlant(BaseCode sceneCode, const BlockPos& position);
 	void api_toolLose(BaseCode humanCode);
 
 	GameTime api_getGameTime() { return this->_time; }
-	SeasonType api_getSeason() { return this->_time.season; }
+	int api_getSeason() { return this->_time.season; }
 
 	// refer上面写着个函数的主要关心的物体，取消的时候就会调用它，如果不知道就写&LIVE
 	static void api_delayTime(const CocoFunc& func, float delaySec, const string& key, void* refer, int repeat = 0, int interval = 0);
@@ -815,8 +899,14 @@ public:
 	// doOverwrite直接复写
 	// doNothing现在lock时不操作
 	static bool api_autoActionLock(LiveObjPtr obj, float timeSec, LockType type, const CocoFunc& func, const string& key, float delaySec = 0, int repeat = 0, int interval = 0);
+	static bool api_autoAnimeLock(LiveObjPtr obj, float timeSec, LockType type, const CocoFunc& func, const string& key, float delaySec = 0, int repeat = 0, int interval = 0);
+
+	static bool api_delegateTimeCompare(float& lockvalue, const float& timeSec, const TimeFunc& func, int& out_return, const string& logname);
+	static bool api_delegateActionTimeCompare(LiveObjPtr& obj, const float& timeSec, const TimeFunc& func, int& out_return, const string& logname);
 
     ~GameLive() {
+		for (auto sce : _trash)
+			delete sce;
         if (_scene != nullptr)
             delete _scene;
         if (_keys != nullptr)

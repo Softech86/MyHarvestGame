@@ -62,13 +62,13 @@ GameLiveObject::StickTo GameLiveObject::whereToStick(GameObject::BigType type) {
 }
 
 const int GameLiveObject::layerOrderMultiplier = 16;
-// 计算绘画的屏幕相对位置
+
 BlockPos GameLiveObject::paintPos() {
-    return this->MP() + BigBlockPos(this->zValue(), 0);
+    return this->MP() + BlockPos(0, this->zValue());
 }
 
 void GameLiveObject::decodePaintPos(BlockPos pos) {
-	this->_margin = pos - BigBlockPos(this->zValue(), 0) - this->padding();
+	this->_margin = pos - BlockPos(0, this->zValue()) - this->padding();
 }
 
 int GameLiveObject::paintLayerOrder(int dotOrder) {
@@ -80,13 +80,11 @@ int GameLiveObject::paintLayerOrder(int dotOrder) {
 void GameLiveObject::setZOrder(float Zorder) {
 	PAINT.objZOrder(this->paintCode(), Zorder);
 	this->_order = Zorder;
-	//cocos2d::log(("Z Order: " + std::to_string(Zorder)).c_str());
 }
 
 void GameLiveObject::setZOrder(float Zorder, float timeSec, float delaySec) {
 	PAINT.objZOrder(this->paintCode(), this->_order, Zorder, timeSec, delaySec);
 	this->_order = Zorder;
-	//cocos2d::log(("Z Order: " + std::to_string(Zorder)).c_str());
 }
 
 void GameLiveObject::autoZOrder(int dotOrder) {
@@ -99,6 +97,15 @@ void GameLiveObject::autoZOrder(int dotOrder, float timeSec, float delaySec) {
 	if (dotOrder < 0)
 		dotOrder = 0;
 	this->setZOrder(this->paintLayerOrder(dotOrder), timeSec, delaySec);
+}
+
+void GameLiveObject::setAlpha(float alpha, float timeSec, float delaySec) {
+	if (alpha < 0)
+		alpha = 0;
+	if (alpha > 1)
+		alpha = 1;
+	PAINT.objAlpha(this->paintCode(), this->_alpha, alpha, timeSec, delaySec);
+	this->_alpha = alpha;
 }
 
 LiveCode GameLiveObject::paint(LiveCode father, int dotOrder) {
@@ -115,7 +122,7 @@ LiveCode GameLiveObject::paint(LiveCode father, int dotOrder) {
 		this->autoZOrder(dotOrder);
     }
 	if (result == nullptr)
-		cocos2d::log(("paint: paint code null " + this->picture()).c_str());
+		cocos2d::log("paint: paint code null : %s", this->picture().c_str());
 	this->getObj()->afterPaint(result);
     return result;
 }
@@ -126,6 +133,8 @@ void GameLiveObject::erase(LiveCode father) {
 }
 
 void GameLiveObject::move(const BlockPos& vec, MoveType move, float timeSec, float delaySec) {
+	cocos2d::log("%s (%d, %d) move: (%d, %d) + %f + %f", this->getObj()->name().c_str(), (this->MP().x), this->MP().y, vec.x, vec.y, timeSec, delaySec);
+
     BlockPos pos = this->paintPos() + vec;
 	LiveCode node = this->paintCode();
 	CocoFunc sch = [node, pos, move, timeSec](float dt) {
@@ -198,6 +207,35 @@ GameLiveUI::GameLiveUI(UIPtr ori) {
         this->_ui = UIPtr(ori->SHCP());
 }
 
+ObjPtr* GameLiveHuman::hasStuffInPack(ObjPtr obj) {
+	for (ObjPtr& packobj : this->_pack) {
+		if (packobj->code() == obj->code() && packobj->getQuality() == obj->getQuality()) {
+			return &packobj;
+		}
+	}
+	return nullptr;
+}
+
+bool GameLiveHuman::putIntoPack() {
+	if (this->_handObject != nullptr) {
+		ObjPtr* objp = hasStuffInPack(this->_handObject);
+		if (objp == nullptr || *objp == nullptr) {
+			if ((int)this->getPack().size() < this->_packMaxSize) {
+				this->getPack().push_back(this->_handObject);
+				return true;
+			}
+			else
+				return false;
+		}
+		else {
+			(*objp)->setCount((*objp)->getCount() + this->_handObject->getCount());
+			return true;
+		}
+	}
+	else
+		return false;
+}
+
 void GameLiveHuman::getRange(BlockPos& out_start, BlockPos& out_size) {
 	if (this->_liveObj != nullptr) {
 		if (this->rangeType == objectRelative) {
@@ -233,17 +271,17 @@ void GameLiveHuman::getRange(BlockPos& out_start, BlockPos& out_size) {
 	}
 }
 
-vector<GameLivePlant>::iterator GameLiveCreature::_findPlant(vector<GameLivePlant>& container, const BlockPos& position) {
+vector<GameLivePlant>::iterator GameLiveCreature::_findPlant(vector<GameLivePlant>& container, const BlockPos& margin) {
 	for (auto lt = container.begin(); lt != container.end(); lt++) {
-		if (lt->getPosition() == position)
+		if (lt->getMargin() == margin)
 			return lt;
 	}
 	return container.end();
 }
 
-bool GameLiveCreature::_removePlant(vector<GameLivePlant>& container, const BlockPos& position) {
+bool GameLiveCreature::_removePlant(vector<GameLivePlant>& container, const BlockPos& margin) {
 	for (auto lt = container.begin(); lt != container.end();) {
-		if (lt->getPosition() == position) {
+		if (lt->getMargin() == margin) {
 			lt = container.erase(lt);
 			return true;
 		}
@@ -364,7 +402,7 @@ void GameLiveScene::rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPt
 							if (mapfind == out_objects.end()){
 								auto pa = std::pair<LiveObjPtr, int>(ptr, i);
 								out_objects.insert(pa);
-								cocos2d::log((std::to_string(ix) + ", " + std::to_string(iy) + ": " + ptr->getObj()->name()).c_str());
+								cocos2d::log("%d, %d : %s", ix, iy, ptr->getObj()->name().c_str());
 							}
 							else
 								if (mapfind->second < i)
@@ -426,6 +464,14 @@ int GameLiveScene::liveDotInsert(LiveDot &ld, LiveObjPtr obj) {
 		ld.insert(pos, obj);
 		return cache;
 	}
+}
+
+int GameLiveScene::liveDotOrderFind(LiveDot &ld, LiveObjPtr obj) {
+	for (auto i = 0; i < (int)ld.size(); ++i) {
+		if (ld[i] == obj)
+			return i;
+	}
+	return -1;
 }
 
 int GameLiveScene::blockAdd(const LiveObjPtr ptr) {
@@ -621,6 +667,7 @@ void GameLiveScene::mapRemove(LiveObjPtr ptr, bool recursive) {
                 mapRemove(child.lock(), true);
             }
             removeAllOutBind(ptr);
+			removeAllInBind(ptr);
         } else {
             for (auto &child : ptr->outBind())
                 removeBind(ptr, child.lock());
@@ -659,6 +706,27 @@ int GameLiveScene::mapMove(LiveObjPtr ptr, const BlockPos& vec, bool recursive) 
 // 这里直接就修改live对象了
 int GameLiveScene::mapReplace(LiveObjPtr oldptr, ObjPtr newptr) {
     return blockReplace(oldptr, newptr);
+}
+
+int GameLiveScene::getDotOrder(LiveObjPtr live) {
+	if (live == nullptr)
+		return -1;
+	auto ld = get(blockMap, mazeSize, live->MP());
+	if (ld == nullptr)
+		return -1;
+	return liveDotOrderFind(*ld, live);
+}
+
+void GameLiveScene::dotZOrderRefresh(const BlockPos& pos) {
+	auto ldp = get(this->blockMap, this->mazeSize, pos);
+	if (ldp == nullptr)
+		return;
+	auto& ld = *ldp;
+	for (int i = 0; i < (int)ld.size(); i++) {
+		if (ld[i]->MP() == pos) {
+			ld[i]->autoZOrder(i);
+		}
+	}
 }
 
 void GameLiveScene::dictAdd(LiveCode code, LiveObjPtr obj) {
@@ -776,9 +844,9 @@ void GameLiveScene::setScene(BaseCode scene) {
 	this->viewPoint = this->scene->padding();
 }
 
-LiveObjPtr GameLiveScene::add(ObjPtr obj, const BlockPos& margin, bool copy) {
+LiveObjPtr GameLiveScene::add(ObjPtr obj, const BlockPos& margin, bool copy, int z) {
 	LiveObjPtr live;
-	live = make(obj, margin, copy);
+	live = make(obj, margin, copy, z);
     add(live);
 	return live;
 }
@@ -800,6 +868,8 @@ void GameLiveScene::add(LiveObjPtr live) {
     int indx = mapAdd(live, false);
 	if (indx == -1)
 		return;
+	dotZOrderRefresh(live->MP());
+
     LiveCode parent = this->getParent(live);
 	if(parent == nullptr)
 		return;
@@ -823,6 +893,8 @@ void GameLiveScene::add(LiveObjPtr live) {
 }
 
 void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
+	if (live == nullptr)
+		return;
     if(recursive) {
         mapRemove(live, true);
         for(auto childptr : live->outBind()) {
@@ -837,12 +909,13 @@ void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
 
 void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive) {
 	BlockPos oldpos = ptr->MP();
+	BlockPos::Direction facing = vec;
+	ptr->setFace(ptr, facing);
 	ptr->move(vec, move, timeSec);
 
 	int ind = mapMove(ptr, vec, false);
+	dotZOrderRefresh(oldpos + vec);
 	ptr->autoZOrder(ind, timeSec, 0);
-	BlockPos::Direction facing = vec;
-	ptr->setFace(ptr, facing);
 
 	if (recursive) {
 		for (auto childptr : ptr->outBind())
@@ -857,6 +930,7 @@ void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move,
 void GameLiveScene::replace(LiveObjPtr oldptr, ObjPtr newptr) {
 	if (oldptr != nullptr && newptr != nullptr) {
 		int indx = mapReplace(oldptr, newptr);
+		dotZOrderRefresh(oldptr->MP());
 		dictRemove(oldptr->paintCode());
 		LiveCode code = oldptr->repaint(this->getParent(oldptr), indx);
 		dictAdd(code, oldptr);
@@ -1195,17 +1269,20 @@ void GameLiveScene::humanReplace(BaseCode humancode, ObjPtr newhuman) {
 	}
 }
 
-void GameLiveScene::humanAddObject(BaseCode humancode, ObjPtr obj, const BlockPos& marginRelative) {
+LiveObjPtr GameLiveScene::humanAddObject(BaseCode humancode, ObjPtr obj, const BlockPos& marginRelative, bool copy, int z) {
 	if (LIVE.api_humanGet(humancode)) {
 		BlockPos humanpos = LIVE.api_humanGet(humancode)->MP();
-		LiveObjPtr live = add(obj, marginRelative + humanpos);
+		LiveObjPtr live = add(obj, marginRelative + humanpos, copy, z);
 		addBind(LIVE.api_humanGet(humancode), live);
+		return live;
 	}
+	return nullptr;
 }
 
-void GameLiveScene::switchFromSurroundingsToHuman(BaseCode humancode, LiveObjPtr obj, const BlockPos& margin, bool recursive) {
+void GameLiveScene::switchFromSurroundingsToHuman(BaseCode humancode, LiveObjPtr obj, const BlockPos& margin, bool recursive, int z) {
 	remove(obj, recursive);
 	obj->margin() = margin;
+	obj->zValue() = z;
 	add(obj);
 	addBind(LIVE.api_humanGet(humancode), obj);
 }
@@ -1242,7 +1319,7 @@ void GameLiveScene::removeDim(float delaySec) {
 		CocoFunc sch = [dim](float dt) {
 			dim->removeAllChildren();
 		};
-		LIVE.api_delayTime(sch, delaySec, "dimRemove" + std::to_string((int)this), &LIVE);
+		GameLive::api_autoLock(this->_animeUntil, 0, doAfter, sch, "SceneDimRemove", delaySec);
 	}
 }
 
@@ -1382,106 +1459,106 @@ GameLive::GameLive() {
 void GameLive::keySet() {
     auto el = cocos2d::EventListenerKeyboard::create();
     el->onKeyPressed = [](cocos2d::EventKeyboard::KeyCode kc, cocos2d::Event * event) {
-        switch (kc) {
-            case cocos2d::EventKeyboard::KeyCode::KEY_W:
-                LIVE.press()[GameKeyPress::buttonUp]= true;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_A:
-                LIVE.press()[GameKeyPress::buttonLeft] = true;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_S:
-                LIVE.press()[GameKeyPress::buttonDown] = true;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_D:
-                LIVE.press()[GameKeyPress::buttonRight] = true;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_J:
-                LIVE.press()[GameKeyPress::buttonA] = true;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_K:
-                LIVE.press()[GameKeyPress::buttonB] = true;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_L:
-				LIVE.press()[GameKeyPress::buttonC] = true;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_U:
-				LIVE.press()[GameKeyPress::buttonU] = true;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_I:
-				LIVE.press()[GameKeyPress::buttonI] = true;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_O:
-				LIVE.press()[GameKeyPress::buttonO] = true;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_P:
-				LIVE.press()[GameKeyPress::buttonP] = true;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_N:
-				LIVE.press()[GameKeyPress::buttonN] = true;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_M:
-				LIVE.press()[GameKeyPress::buttonM] = true;
-				break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
-                LIVE.press()[GameKeyPress::buttonStart] = true;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_SPACE:
-                LIVE.press()[GameKeyPress::buttonSpace] = true;
-                break;
-            default:
-                break;
-        }
+		switch (kc) {
+		case cocos2d::EventKeyboard::KeyCode::KEY_UP_ARROW:
+			LIVE.press()[GameKeyPress::buttonUp] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_LEFT_ARROW:
+			LIVE.press()[GameKeyPress::buttonLeft] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+			LIVE.press()[GameKeyPress::buttonDown] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
+			LIVE.press()[GameKeyPress::buttonRight] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_Z:
+			LIVE.press()[GameKeyPress::buttonA] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_X:
+			LIVE.press()[GameKeyPress::buttonB] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_C:
+			LIVE.press()[GameKeyPress::buttonC] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_U:
+			LIVE.press()[GameKeyPress::buttonU] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_I:
+			LIVE.press()[GameKeyPress::buttonI] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_O:
+			LIVE.press()[GameKeyPress::buttonO] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_P:
+			LIVE.press()[GameKeyPress::buttonP] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_N:
+			LIVE.press()[GameKeyPress::buttonN] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_M:
+			LIVE.press()[GameKeyPress::buttonM] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
+			LIVE.press()[GameKeyPress::buttonStart] = true;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_SPACE:
+			LIVE.press()[GameKeyPress::buttonSpace] = true;
+			break;
+		default:
+			break;
+		}
     };
     el->onKeyReleased = [](cocos2d::EventKeyboard::KeyCode kc, cocos2d::Event * event) {
-        switch (kc) {
-            case cocos2d::EventKeyboard::KeyCode::KEY_W:
-                LIVE.press()[GameKeyPress::buttonUp] = false;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_A:
-                LIVE.press()[GameKeyPress::buttonLeft] = false;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_S:
-                LIVE.press()[GameKeyPress::buttonDown] = false;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_D:
-                LIVE.press()[GameKeyPress::buttonRight] = false;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_J:
-                LIVE.press()[GameKeyPress::buttonA] = false;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_K:
-                LIVE.press()[GameKeyPress::buttonB] = false;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_L:
-				LIVE.press()[GameKeyPress::buttonC] = false;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_U:
-				LIVE.press()[GameKeyPress::buttonU] = false;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_I:
-				LIVE.press()[GameKeyPress::buttonI] = false;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_O:
-				LIVE.press()[GameKeyPress::buttonO] = false;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_P:
-				LIVE.press()[GameKeyPress::buttonP] = false;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_N:
-				LIVE.press()[GameKeyPress::buttonN] = false;
-				break;
-			case cocos2d::EventKeyboard::KeyCode::KEY_M:
-				LIVE.press()[GameKeyPress::buttonM] = false;
-				break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
-                LIVE.press()[GameKeyPress::buttonStart] = false;
-                break;
-            case cocos2d::EventKeyboard::KeyCode::KEY_SPACE:
-                LIVE.press()[GameKeyPress::buttonSpace] = false;
-                break;
-            default:
-                break;
-        }
+		switch (kc) {
+		case cocos2d::EventKeyboard::KeyCode::KEY_UP_ARROW:
+			LIVE.press()[GameKeyPress::buttonUp] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_LEFT_ARROW:
+			LIVE.press()[GameKeyPress::buttonLeft] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_DOWN_ARROW:
+			LIVE.press()[GameKeyPress::buttonDown] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_RIGHT_ARROW:
+			LIVE.press()[GameKeyPress::buttonRight] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_Z:
+			LIVE.press()[GameKeyPress::buttonA] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_X:
+			LIVE.press()[GameKeyPress::buttonB] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_C:
+			LIVE.press()[GameKeyPress::buttonC] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_U:
+			LIVE.press()[GameKeyPress::buttonU] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_I:
+			LIVE.press()[GameKeyPress::buttonI] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_O:
+			LIVE.press()[GameKeyPress::buttonO] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_P:
+			LIVE.press()[GameKeyPress::buttonP] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_N:
+			LIVE.press()[GameKeyPress::buttonN] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_M:
+			LIVE.press()[GameKeyPress::buttonM] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_ENTER:
+			LIVE.press()[GameKeyPress::buttonStart] = false;
+			break;
+		case cocos2d::EventKeyboard::KeyCode::KEY_SPACE:
+			LIVE.press()[GameKeyPress::buttonSpace] = false;
+			break;
+		default:
+			break;
+		}
     };
     cocos2d::Director::getInstance()->getEventDispatcher()->addEventListenerWithFixedPriority(el, 1);
 }
@@ -1494,6 +1571,44 @@ BlockPos GameLiveScene::nextVectorToApproachALine(const BlockPos& lineTarget, co
 
 GameLiveScene::detectMoveReturn GameLiveScene::detectMoveOneObject(LiveObjPtr obj, const BlockPos& vec, MoveType move, float timeSec) {
 	return GameLiveScene::detectMoveReturn::canMove;
+}
+
+void GameTime::timeAdd(int _minutes) {
+	this->minute += _minutes;
+	if (this->minute > BASE.MINUTES_IN_HOUR) {
+		int hours_ = this->minute / BASE.MINUTES_IN_HOUR;
+		this->minute -= hours_ * BASE.MINUTES_IN_HOUR;
+		hourAdd(hours_);
+	}
+}
+
+void GameTime::hourAdd(int _hours) {
+	this->hour += _hours;
+	if (this->hour > BASE.HOUR_IN_DAY) {
+		int days_ = this->hour / BASE.HOUR_IN_DAY;
+		this->hour -= days_ * BASE.HOUR_IN_DAY;
+		dayAdd(days_);
+	}
+}
+
+void GameTime::dayAdd(int _days) {
+	cocos2d::log("DateAdd Before %d-%d-%d %d:%d", this->year, this->season, this->date, this->hour, this->minute);
+	this->date += _days;
+	if (this->date > BASE.DAYS_IN_SEASON) {
+		int seasons_ = this->date / BASE.DAYS_IN_SEASON;
+		this->date -= seasons_ * BASE.DAYS_IN_SEASON;
+		seasonAdd(seasons_);
+	}
+	cocos2d::log("DateAdd After %d-%d-%d %d:%d", this->year, this->season, this->date, this->hour, this->minute);
+}
+
+void GameTime::seasonAdd(int _seasons) {
+	this->season += _seasons;
+	if (this->season > SeasonType::fuyu) {
+		int years_ = this->season / 4;
+		this->year += years_;
+		this->season -= years_ * 4;
+	}
 }
 
 GameLivePlant::GameLivePlant(BaseCode plant, BaseCode plantScene, const BlockPos& plantPos) {
@@ -1523,14 +1638,17 @@ ObjPtr GameLivePlant::getObject() const {
 	auto tmp = BASE.getPlant(_plant);
 	if (tmp)
 		return tmp->getObject(this->_stage);
-	else
+	else {
+		cocos2d::log("[ERROR] GameLivePlant::getObject : plant %d at stage %d", _plant, _stage);
 		return nullptr;
+	}
 }
 
 void GameLivePlant::onSceneClose(GameLiveScene* oldscene) {
 	if (oldscene == nullptr || this->_plantScene != oldscene->getCode())
 		return;
-	if (this->_added == false && oldscene->stuffExistsOn(soilWateredCode, this->getPosition())) {
+	auto padding = BASE.getPlant(this->_plant)->getObject(this->_stage)->padding();
+	if (this->_added == false && oldscene->stuffExistsOn(soilWateredCode, this->getMargin() + padding)) {
 		this->add(1, 1);
 		this->_added = true;
 	}
@@ -1762,12 +1880,16 @@ void GameLive::api_sceneICD(BaseCode sceneCode, const BlockPos& mazeSize, const 
 }
 
 void GameLive::api_sceneClose() {
-	if (this->_creature)
-		this->_creature->onSceneClose(this->_scene);
-	PAINT.nodeRemove(this->_scene->rootCode());
+	if (this->_scene != nullptr) {
+		if (this->_creature)
+			this->_creature->onSceneClose(this->_scene);
+		PAINT.nodeRemove(this->_scene->rootCode());
+		this->_trash.push_back(this->_scene);
+	}
 }
 
 void GameLive::api_dayPass() {
+	this->_time.dayAdd();
 	if (this->_scene) {
 		// 这个目前非常地混乱粗糙，还原度很低，其实是有很大一部分应该放在GameLiveHuman里面完成的，比如人消失时候的数据保存和再现
 		api_allDim();
@@ -1783,11 +1905,14 @@ void GameLive::api_dayPass() {
 				kidpos = kid->MP();
 				focus = this->_scene->isFocusOnHuman(kidHumanCode);
 			}
+			auto sccode = this->_scene->getCode();
+			auto mazesize = this->_scene->mazeSize;
+			auto windowsize = this->_scene->windowSize;
 			api_sceneClose();
 			if (this->_creature) {
 				this->_creature->onDayPass();
 			}
-			api_sceneICD(this->_scene->getCode(), this->_scene->mazeSize, this->_scene->windowSize);
+			api_sceneICD(sccode, mazesize, windowsize);
 			if (flag = true) {
 				api_kidSet(stuff, kidpos, focus);
 			}
@@ -1810,7 +1935,7 @@ void GameLive::api_removeDim(float delaySec) {
 		CocoFunc sch = [dim](float dt) {
 			dim->removeAllChildren();
 		};
-		LIVE.api_delayTime(sch, delaySec, "GameLiveDimRemove", &LIVE);
+		GameLive::api_autoLock(this->_animeUntil, 0, doAfter, sch, "LiveDimRemove", delaySec);
 	}
 }
 
@@ -1842,6 +1967,9 @@ void GameLive::api_humanSet(BaseCode humancode, BaseCode stuffCode, const BlockP
 void GameLive::api_humanSet(BaseCode humancode, ObjPtr ptr, const BlockPos& pos, bool focus, bool copy) {
 	if (this->_scene != nullptr) {
 		this->_creature->setHumanPtr(humancode, this->_scene->humanSet(humancode, ptr, pos, copy));
+		auto human = api_getHuman(humancode);
+		if (human != nullptr)
+			human->setHandLive(LIVE.api_humanAddObject(kidHumanCode, human->getHand(), BlockPos::zero, false, pickZValue(ptr)));
 		if (focus)
 			this->_scene->setFocus(api_humanGet(humancode));
 	}
@@ -1875,16 +2003,31 @@ void GameLive::api_kidRun(const BlockPos& vec) {
 	api_humanRun(kidHumanCode, vec);
 }
 
-void GameLive::api_addObject(BaseCode code, const BlockPos& margin, bool autoAdd) {
+LiveObjPtr GameLive::api_addObject(BaseCode code, const BlockPos& margin, bool autoAdd, int z) {
+	return api_addObject(BASE.getStuff(code), margin, autoAdd, true, z);
+}
+
+LiveObjPtr GameLive::api_addObject(ObjPtr object, const BlockPos& margin, bool autoAdd, bool copy, int z) {
 	if (this->_scene != nullptr) {
 		if (autoAdd) {
 			BaseCode sctemp = api_getSceneCode();
-			if (this->_creature && code > plantStuffStart && code < plantStuffEnd && sctemp != -1) {
-				PlantCode pc = BASE.stuffToPlant(code);
-				this->_creature->addPlant(pc, sctemp, margin);
+			if (this->_creature 
+				&& object->code() > plantStuffStart
+				&& object->code() < plantStuffEnd
+				&& sctemp > sceneStart
+				&& sctemp < sceneEnd) {
+				PlantCode pc = BASE.stuffToPlant(object->code());
+				if (this->_creature->addPlant(pc, sctemp, margin) == false) {
+					cocos2d::log("[FAILED] add object: plant");
+					return nullptr;
+				}
 			}
 		}
-		this->_scene->add(BASE.getStuff(code), margin);
+		return this->_scene->add(object, margin, copy, z);
+	}
+	else {
+		cocos2d::log("[FAILED] add object: no scene");
+		return nullptr;
 	}
 }
 
@@ -1894,7 +2037,7 @@ void GameLive::api_replaceObject(LiveObjPtr obj, ObjPtr ptr) {
 	}
 }
 
-void GameLive::api_humanWalkStep(BaseCode humancode, BlockPos::Direction dir) {
+void GameLive::api_humanWalkStep(BaseCode humancode, BlockPos::Direction dir, LockType lock) {
 	if (this->_scene != nullptr) {
 		LiveObjPtr human = LIVE.api_humanGet(humancode);
 		if (human == nullptr)
@@ -1904,11 +2047,11 @@ void GameLive::api_humanWalkStep(BaseCode humancode, BlockPos::Direction dir) {
 		CocoFunc sch = [humancode, dist](float dt) {
 			LIVE.api_humanWalk(humancode, dist);
 		};
-		LIVE.api_autoActionLock(human, timeSec, doNothing, sch, "kidWalk");
+		LIVE.api_autoActionLock(human, timeSec, lock, sch, "kidWalk");
 	}
 }
 
-void GameLive::api_humanRunStep(BaseCode humancode, BlockPos::Direction dir) {
+void GameLive::api_humanRunStep(BaseCode humancode, BlockPos::Direction dir, LockType lock) {
 	if (this->_scene != nullptr) {
 		LiveObjPtr human = LIVE.api_humanGet(humancode);
 		if (human == nullptr)
@@ -1918,7 +2061,7 @@ void GameLive::api_humanRunStep(BaseCode humancode, BlockPos::Direction dir) {
 		CocoFunc sch = [humancode, dist](float dt) {
 			LIVE.api_humanRun(humancode, dist);
 		};
-		LIVE.api_autoActionLock(human, timeSec, doNothing, sch, "kidRun");
+		LIVE.api_autoActionLock(human, timeSec, lock, sch, "kidRun");
 	}
 }
 
@@ -1930,9 +2073,181 @@ void GameLive::api_kidRunStep(BlockPos::Direction dir) {
 	api_humanRunStep(kidHumanCode, dir);
 }
 
+int GameLive::pickZValue(ObjPtr human) {
+	return human->size().y;
+}
+
+BlockPos GameLive::pickPosition(LiveObjPtr human) {
+	BlockPos pos2 = human->paintPos();
+	pos2.y += pickZValue(human->getObj());
+	return pos2;
+}
+
+BlockPos GameLive::dropPosition(LiveObjPtr human) {
+	BlockPos pos2 = human->paintPos();
+	pos2 += BlockPos::dirToBlock(human->getFace()) * BlockPos(BIG_TO_SMALL, BIG_TO_SMALL);
+	return pos2;
+}
+
+void GameLive::pickAnimation(BaseCode humancode, LiveObjPtr stuff) {
+	auto human = api_humanGet(humancode);
+	if (human == nullptr || stuff == nullptr || human->getObj() == nullptr)
+		return;
+	BlockPos pos1 = stuff->paintPos();
+	BlockPos pos2 = pickPosition(human);
+	LiveCode cloud = _scene->codeCloud;
+	LiveCode tempstuff = stuff->paint(cloud, 2);
+	stuff->move(pos2 - pos1, linear, BASE.PICK_STUFF_TIME - 0.1f);
+
+	CocoFunc sch = [tempstuff, cloud](float) {
+		cloud->removeChild(tempstuff);
+	};
+	LIVE.api_autoAnimeLock(human, 0, doNothing, sch, "pick animation", BASE.PICK_STUFF_TIME);
+}
+
+void GameLive::dropAnimation(BaseCode humancode, LiveObjPtr stuff, const BlockPos& dropPosition) {
+	auto human = api_humanGet(humancode);
+	if (human == nullptr || stuff == nullptr || human->getObj() == nullptr)
+		return;
+	BlockPos pos1 = pickPosition(human);
+	LiveCode cloud = _scene->codeCloud;
+
+	auto oripos = stuff->margin();
+	auto origin = stuff->paintCode();
+	auto orialpha = stuff->alpha();
+
+	stuff->alpha() = 1;
+	stuff->margin() = pos1;
+	LiveCode tempstuff = stuff->paint(cloud, 2);
+	stuff->move(dropPosition - pos1, linear, BASE.DROP_STUFF_TIME - 0.1f);
+
+	stuff->_paintCode = origin;
+	stuff->margin() = oripos;
+	stuff->alpha() = orialpha;
+
+	CocoFunc sch = [tempstuff, cloud](float) {
+		cloud->removeChild(tempstuff);
+	};
+	LIVE.api_autoAnimeLock(human, 0, doNothing, sch, "drop animation", BASE.DROP_STUFF_TIME);
+}
+
+GameLive::ActionResult GameLive::api_humanPick(BaseCode humancode, LiveObjPtr stuff) {
+	auto humanlive = api_humanGet(humancode);
+	TimeFunc sche = [stuff, humancode, humanlive, this]() {
+		auto human = api_getHuman(humancode);
+		if (humanlive == nullptr
+			|| humanlive->getObj() == nullptr
+			|| human == nullptr
+			|| stuff == nullptr
+			|| human->setHand(stuff->getObj()) == false) {
+			return GameLive::DELEGATE_ROLLBACK;
+		}
+		LiveObjPtr temp;
+		if ((temp = human->getHandLive()) != nullptr) {
+			api_removeObject(temp);
+			human->setHandLive(nullptr);
+		}
+		api_removeObject(stuff);
+		pickAnimation(humancode, stuff);
+		BlockPos pos = humanlive->MP();
+		int zValue = pickZValue(humanlive->getObj());
+		ObjPtr ptr = stuff->getObj();
+		CocoFunc sch = [zValue, pos, ptr, human](float dt) {
+			human->setHandLive(LIVE.api_humanAddObject(kidHumanCode, ptr, BlockPos::zero, false, zValue));
+		};
+		api_autoActionLock(humanlive, 0, doAfter, sch, "pick2", 0);
+		return 0;
+	}; 
+	int tempres = 0;
+	bool timepass = api_delegateActionTimeCompare(humanlive, BASE.PICK_STUFF_TIME, sche, tempres, "pick1");
+
+	if (timepass)
+		if (tempres = DELEGATE_ROLLBACK)
+			return ActionResult::cannotDo;
+		else
+			return ActionResult::done;
+	else
+		return ActionResult::timeBlocked;
+}
+
+GameLive::ActionResult GameLive::api_humanDrop(BaseCode humancode) {
+	auto humanlive = api_humanGet(humancode);
+	TimeFunc sche = [humanlive, humancode, this]() {
+		auto human = api_getHuman(humancode);
+		if (humanlive == nullptr
+			|| humanlive->getObj() == nullptr
+			|| human == nullptr)
+			return GameLive::DELEGATE_ROLLBACK;
+
+		ObjPtr obj = human->dropHand();
+		// 如果手上空了的话
+		if (human->handIsEmpty()) {
+			api_removeObject(human->getHandLive());
+			human->setHandLive(nullptr);
+		}
+		if (obj == nullptr)
+			return GameLive::DELEGATE_ROLLBACK;
+
+		BlockPos pos2 = dropPosition(humanlive);
+		LiveObjPtr objlive = api_addObject(obj, pos2, true, false, 0);
+		if (objlive == nullptr)
+			return GameLive::DELEGATE_ROLLBACK;
+
+		api_removeObject(objlive);
+		dropAnimation(humancode, objlive, pos2);
+		CocoFunc sch = [obj, pos2, this](float) {
+			api_addObject(obj, pos2, true, false, 0);
+		};
+		api_autoActionLock(humanlive, 0, doAfter, sch, "drop2", 0);
+		return 0;
+	};
+	int tempres = 0;
+	bool timepass = api_delegateActionTimeCompare(humanlive, BASE.DROP_STUFF_TIME, sche, tempres, "drop1");
+
+	if (timepass)
+		if (tempres = DELEGATE_ROLLBACK)
+			return ActionResult::cannotDo;
+		else
+			return ActionResult::done;
+	else
+		return ActionResult::timeBlocked;
+}
+
+GameLive::ActionResult GameLive::api_kidPick(LiveObjPtr stuff) {
+	return api_humanPick(kidHumanCode, stuff);
+}
+
+LiveObjPtr GameLive::api_humanAddObject(BaseCode humancode, ObjPtr obj, const BlockPos& marginRelative, bool copy, int z) {
+	if (this->_scene && obj != nullptr)
+		return this->_scene->humanAddObject(humancode, obj, marginRelative, copy, z);
+	return nullptr;
+}
+
+void GameLive::api_moveObject(LiveObjPtr obj, const BlockPos& vec, MoveType type, float timeSec, bool recursive) {
+	if (this->_scene) {
+		this->_scene->movemove(obj, vec, type, timeSec, recursive);
+	}
+}
+
 void GameLive::api_changePicture(LiveObjPtr obj, const string& newcsb) {
 	if (this->_scene) {
 		this->_scene->changePicture(obj, newcsb);
+	}
+}
+
+void GameLive::api_removeObject(LiveObjPtr object, bool recursive, bool autoRemove) {
+	if (this->_scene && object != nullptr) {
+		if (autoRemove) {
+			BaseCode sctemp = api_getSceneCode();
+			if (this->_creature
+				&& object->getObj()->code() > plantStuffStart
+				&& object->getObj()->code() < plantStuffEnd
+				&& sctemp > sceneStart
+				&& sctemp < sceneEnd) {
+				this->_creature->removePlant(sctemp, object->margin());
+			}
+			this->_scene->remove(object, recursive);
+		}
 	}
 }
 
@@ -2001,12 +2316,14 @@ bool GameLive::api_autoLock(float& lockValue, float timeSec, LockType type, cons
 		else
 			delay += lockValue - now;
 		lockValue += delaySec + timeSec;
+		cocos2d::log("[Succeeded] %s @%f : %f + %f -> %f <%d, %d>", key.c_str(), now, timeSec, delaySec, lockValue, repeat, interval);
 		LIVE.api_delayTime(func, delay, key, lockptr, repeat, interval);
 		return true;
 	}
 	else { // 这里lockValue一定大于now
 		if (type == LockType::doBreak) {
 			lockValue = now + delaySec + timeSec;
+			cocos2d::log("[Succeeded] %s @ %f : %f + %f -> %f <%d, %d>", key.c_str(), now, timeSec, delaySec, lockValue, repeat, interval);
 			CocoFunc sch = [func, key, repeat, interval, lockptr](float dt) {
 				LIVE.api_undelayAll(lockptr);
 				LIVE.api_delayTime(func, 0, key, lockptr, repeat, interval);
@@ -2016,15 +2333,18 @@ bool GameLive::api_autoLock(float& lockValue, float timeSec, LockType type, cons
 		}
 		else if (type == LockType::doClearBreak || type == LockType::doOverwrite) {
 			lockValue = now + delaySec + timeSec;
+			cocos2d::log("[Succeeded] %s @ %f : %f + %f -> %f <%d, %d>", key.c_str(), now, timeSec, delaySec, lockValue, repeat, interval);
 			if (type == LockType::doClearBreak)
 				LIVE.api_undelayAll(lockptr);
 			LIVE.api_delayTime(func, delaySec, key, lockptr, repeat, interval);
 			return true;
 		}
 		else if (type == LockType::doNothing) {
+			cocos2d::log("[Cancelled] %s @ %f : %f + %f # %f <%d, %d>", key.c_str(), now, timeSec, delaySec, lockValue, repeat, interval);
 			return false;
 		}
 		else {
+			cocos2d::log("[Cancelled] %s @ %f : %f + %f # %f <%d, %d>", key.c_str(), now, timeSec, delaySec, lockValue, repeat, interval);
 			return false;
 		}
 	}
@@ -2034,7 +2354,39 @@ bool GameLive::api_autoActionLock(LiveObjPtr obj, float timeSec, LockType type, 
 	return LIVE.api_autoLock(obj->_lockUntil, timeSec, type, func, key, delaySec, repeat, interval);
 }
 
-JudgeReturn GameObjectJudge::judge(float* keyarray, GameLive& live, GameLiveScene& scene, vector<LiveObjPtr>& objects) {
+bool GameLive::api_autoAnimeLock(LiveObjPtr obj, float timeSec, LockType type, const CocoFunc& func, const string& key, float delaySec, int repeat, int interval) {
+	return LIVE.api_autoLock(obj->_animeUntil, timeSec, type, func, key, delaySec, repeat, interval);
+}
+
+bool GameLive::api_delegateTimeCompare(float& lockvalue, const float& timeSec, const TimeFunc& func, int& out_return, const string& logname) {
+	float now = PAINT.clock();
+	if (lockvalue > now) {
+		cocos2d::log("[Cancelled] %s @ %f : + %f # %f", logname.c_str(), now, timeSec, lockvalue);
+		return false;
+	}
+	else {
+		lockvalue = now + timeSec;
+		cocos2d::log("[Trying] %s @ %f : + %f -> %f", logname.c_str(), now, timeSec, lockvalue);
+		out_return = func();
+		if (out_return == DELEGATE_ROLLBACK) {
+			lockvalue = now;
+			cocos2d::log("[Rolling Back] -> %f", lockvalue);
+		}
+		else
+			cocos2d::log("[Returning] %d", out_return);
+		return true;
+	}
+}
+
+bool GameLive::api_delegateActionTimeCompare(LiveObjPtr& obj, const float& timeSec, const TimeFunc& func, int& out_return, const string& logname) {
+	return api_delegateTimeCompare(obj->_lockUntil, timeSec, func, out_return, logname);
+}
+
+LiveObjPtr GameObjectJudge::getHumanPtr()  {
+	return _live->api_humanGet(this->_humancode); 
+}
+
+JudgeReturn GameObjectJudge::judge(float* keyarray, GameLiveScene& scene, vector<LiveObjPtr>& objects) {
 	autoTranslate(keyarray);
 step_two:
 	for (auto ind = 0; ind < (int)objects.size(); ind++) {
@@ -2050,9 +2402,16 @@ step_two:
 		else
 			objcmd = getCmdCache();
 		EventPtr eve;
-		JudgeReturn jud = obj->link(objcmd, eve, *this);
-		if (eve != nullptr)
-			live.api_eventStart(eve, nullptr);
+		float timeSec, delaySec;
+		LockType lock;
+		JudgeReturn jud = obj->link(objcmd, eve, *this, timeSec, delaySec, lock);
+		if (eve != nullptr) {
+			GameLive* live = this->_live;
+			CocoFunc sch = [live, eve](float) {
+				live->api_eventStart(eve, nullptr);
+			};
+			_live->api_autoActionLock(this->getHumanPtr(), timeSec, lock, sch, "event" + std::to_string(getHumanCode()), delaySec);
+		}
 		switch (jud)
 		{
 		case judgeEnd:
@@ -2085,7 +2444,7 @@ step_two:
 }
 
 void GameLive::judge() {
-	GameObjectJudge objJudge(kidHumanCode, GameBase::DEFAULT_COMMAND);
+	GameObjectJudge objJudge(this, kidHumanCode, GameBase::DEFAULT_COMMAND);
 step_one:
 	for (int i = _UIUp.size() - 1; i >= 0; i--) {
 		if (_UIUp[i] == nullptr)
@@ -2129,7 +2488,7 @@ step_two:
 	if (this->_scene) {
 		vector<LiveObjPtr> objects;
 		this->_scene->kidRangeObjects(objects);
-		auto jud = objJudge.judge(this->keys(), *this, *(this->_scene), objects);
+		auto jud = objJudge.judge(this->keys(), *(this->_scene), objects);
 		if (jud == judgeEnd)
 			return;
 		else if (jud == judgeNextLayer)
@@ -2138,48 +2497,6 @@ step_two:
 			goto step_one;
 		else {
 		}
-		/*
-		for (auto ind = 0; ind < (int)objects.size(); ind++) {
-			this->_objectJudgeNow = objects[ind];
-			ObjPtr obj = this->_objectJudgeNow->getObj();
-			if (obj == nullptr)
-				continue;
-			else {
-				GameCommand cmd;
-				if (obj->isCustomTranslate())
-					cmd = obj->translate(this->keys());
-				else
-					cmd = api_getCommandCache();
-				EventPtr eve;
-				JudgeReturn jud= obj->link(cmd, eve);
-				if (eve != nullptr)
-					api_eventStart(eve, nullptr);
-				if (jud == judgeEnd) {
-					return;
-				}
-				else if (jud == judgeNextObject) {
-					continue;
-				}
-				else if (jud == judgeNextLayer) {
-					break;
-				}
-				else if (jud == judgePreviousObject) {
-					if (ind > 1)
-						ind -= 2;
-				}
-				else if (jud == judgeObjectLayer) {
-					goto step_two;
-				}
-				else if (jud == judgeResetLayer) {
-					goto step_two;
-				}
-				else if (jud == judgeResetAll) {
-					goto step_one;
-				}
-				else {
-				}
-			}
-		}	*/
 	}
 
 step_three:
@@ -2219,18 +2536,27 @@ step_three:
 	_UIJudgeNow = nullptr;
 }
 
-bool GameLive::keyPushed(float* keyarray, GameKeyPress gkp) {
-	if (keyarray[gkp] > 0)
-		return true;
-	else
-		return false;
-}
-bool GameLive::keyPushed(float* keyarray, vector<GameKeyPress> vgkp) {
-	for (unsigned int i = 0; i < vgkp.size(); i++)
-		if (keyarray[vgkp[i]] == 0 || keyarray[vgkp[i]] < 0)
+bool GameLive::keyPushed(float* keyarray, GameKeyPress gkp, bool only) {
+	if (only)
+		return keyPushedOnly(keyarray, gkp);
+	else {
+		if (keyarray[gkp] > 0)
+			return true;
+		else
 			return false;
-	return true;
+	}
 }
+bool GameLive::keyPushed(float* keyarray, vector<GameKeyPress> vgkp, bool only) {
+	if (only)
+		return keyPushedOnly(keyarray, vgkp);
+	else {
+		for (unsigned int i = 0; i < vgkp.size(); i++)
+			if (keyarray[vgkp[i]] == 0 || keyarray[vgkp[i]] < 0)
+				return false;
+		return true;
+	}
+}
+
 bool GameLive::keyPushedOnly(float* keyarray, GameKeyPress gkp) {
 	auto keys = keyarray;
 	//pushed
@@ -2255,29 +2581,35 @@ bool GameLive::keyPushedOnly(float* keyarray, vector<GameKeyPress> vgkp) {
 			++keyPressedNum;
 	return ((int)vgkp.size()) == keyPressedNum;
 }
-bool GameLive::keyJustPushedOnly(float* keyarray, GameKeyPress gkp) {
+
+bool GameLive::keyJustPushed(float* keyarray, GameKeyPress gkp, bool only) {
 	auto keys = keyarray;
 	//pushed
 	if (keys[gkp] < _loopfreq - _loopdevation || keys[gkp] > _loopfreq + _loopdevation) //考虑可以忽略的延迟时间?
 		return false;
 	//only
-	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
-		if (i != gkp && (keys[i] >= _loopfreq - _loopdevation && keys[i] <= _loopfreq + _loopdevation))
-			return false;
+	if (only)
+		for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+			if (i != gkp && (keys[i] >= _loopfreq - _loopdevation && keys[i] <= _loopfreq + _loopdevation))
+				return false;
 	return true;
 }
-bool GameLive::keyJustPushedOnly(float* keyarray, vector<GameKeyPress> vgkp) {
+bool GameLive::keyJustPushed(float* keyarray, vector<GameKeyPress> vgkp, bool only) {
 	auto keys = keyarray;
 	//pushed
 	for (unsigned int i = 0; i < vgkp.size(); i++)
 		if (keys[vgkp[i]] < _loopfreq - _loopdevation || keys[vgkp[i]] > _loopfreq + _loopdevation) //考虑可以忽略的延迟时间?
 			return false;
 	//only
-	int keyPressedNum = 0;
-	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
-		if (keys[i] >= _loopfreq - _loopdevation && keys[i] <= _loopfreq + _loopdevation)
-			++keyPressedNum;
-	return ((int)vgkp.size()) == keyPressedNum;
+	if (only) {
+		int keyPressedNum = 0;
+		for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+			if (keys[i] >= _loopfreq - _loopdevation && keys[i] <= _loopfreq + _loopdevation)
+				++keyPressedNum;
+		return ((int)vgkp.size()) == keyPressedNum;
+	}
+	else
+		return true;
 }
 bool GameLive::_keyCyclePushed(float presstime, float cycleSec) {
 	float time = std::fmod(presstime, cycleSec);
@@ -2286,27 +2618,32 @@ bool GameLive::_keyCyclePushed(float presstime, float cycleSec) {
 	else
 		return false;
 }
-bool GameLive::keyCyclePushedOnly(float* keys, GameKeyPress gkp, float cycleSec) {
+bool GameLive::keyCyclePushed(float* keys, GameKeyPress gkp, float cycleSec, bool only) {
 	//pushed
 	if (!_keyCyclePushed(keys[gkp], cycleSec))
 		return false;
 	//only
-	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
-		if (i != gkp && _keyCyclePushed(keys[i], cycleSec))
-			return false;
+	if (only)
+		for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+			if (i != gkp && _keyCyclePushed(keys[i], cycleSec))
+				return false;
 	return true;
 }
-bool GameLive::keyCyclePushedOnly(float* keys, vector<GameKeyPress> vgkp, float cycleSec) {
+bool GameLive::keyCyclePushed(float* keys, vector<GameKeyPress> vgkp, float cycleSec, bool only) {
 	//pushed
 	for (auto gkp : vgkp)
 		if (!_keyCyclePushed(keys[gkp], cycleSec))
 			return false;
 	//auto
-	int keypressedcnt = 0;
-	for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
-		if (_keyCyclePushed(keys[i], cycleSec))
-			keypressedcnt++;
-	return ((int)vgkp.size()) == keypressedcnt;
+	if (only) {
+		int keypressedcnt = 0;
+		for (auto i = GameKeyPress::buttonEmpty + 1; i < GameKeyPress::buttonEnd; ++i)
+			if (_keyCyclePushed(keys[i], cycleSec))
+				keypressedcnt++;
+		return ((int)vgkp.size()) == keypressedcnt;
+	}
+	else
+		return true;
 }
 
 

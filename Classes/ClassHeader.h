@@ -28,7 +28,7 @@ using std::set;
 
 enum MoveType { linear, };
 
-enum SeasonType { haru, natsu, aki, fuyu };
+enum SeasonType { haru = 1, natsu = 2, aki = 3, fuyu = 4 };
 
 enum WalkType {
     allWalk, noneWalk, alphaWalk
@@ -114,7 +114,6 @@ enum StuffCode {
 	toolWaterCan,
 	toolPotatoSeed,
 	toolEnd,
-	// 如果你要增加工具的话记得增加command枚举和BASE.toolToCmd函数
 
     soilCombCode,
     soilOriginCode,
@@ -168,6 +167,7 @@ enum TransCode {
 enum LinkerCode {
 	soilLinkerCode,
 	bedLinkerCode,
+	defaultLinkerCode,
 };
 
 enum UICode {
@@ -189,6 +189,7 @@ typedef float NumType;
 typedef int BaseCode;
 typedef cocos2d::Node* LiveCode;
 typedef std::function<void(float)> CocoFunc;
+typedef std::function<int()> TimeFunc;
 
 class GameLive;
 class GameBase;
@@ -497,6 +498,9 @@ typedef std::vector<LiveObjPtr> LiveDot;
 
 struct LinkerReturn {
     EventPtr eve = nullptr;
+	float lockTime = 3;
+	float delayTime = 0;
+	LockType lock = doNothing;
     JudgeReturn judge = judgeEnd;
 };
 

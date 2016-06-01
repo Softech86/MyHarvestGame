@@ -81,9 +81,6 @@ public:
 
 class ToolUI : public GameUI {
 public:
-	//BaseCode tool = StuffCode::toolHoe;
-	//LiveObjPtr toolBefore = nullptr; //这个是小图吗？
-
 	void toolPaint(LiveCode paper);
 	SHCP_OVERRIDE(GameUI, ToolUI);
 	virtual LiveCode start() override;
@@ -115,11 +112,12 @@ public:
 	virtual GameCommand translate(float* keyarray) override;
 };
 
-class HandTranslator : public GameTranslator {
-public:
-	SHCP_OVERRIDE(GameTranslator, HandTranslator);
-	virtual GameCommand translate(float* keyarray) override;
-};
+//
+//class HandTranslator : public GameTranslator {
+//public:
+//	SHCP_OVERRIDE(GameTranslator, HandTranslator);
+//	virtual GameCommand translate(float* keyarray) override;
+//};
 
 class SoilLinker : public GameLinker{
 public:
@@ -130,6 +128,12 @@ public:
 class BedLinker : public GameLinker {
 public:
 	SHCP_OVERRIDE(GameLinker, BedLinker);
+	virtual LinkerReturn link(GameCommand, GameObjectJudge&) override;
+};
+
+class DefaultLinker : public GameLinker {
+public:
+	SHCP_OVERRIDE(GameLinker, DefaultLinker);
 	virtual LinkerReturn link(GameCommand, GameObjectJudge&) override;
 };
 

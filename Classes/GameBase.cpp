@@ -7,10 +7,16 @@ const PxPos			PxPos::zero = PxPos(0, 0);
 const BlockPos		BlockPos::zero = BlockPos(0, 0);
 const GameObject	GameObject::origin;
 
-const float			GameBase::KID_MOVE_SPEED_IN_BIG_BLOCKS = 6.0f;
-const BlockType		GameBase::KID_STEP = 1;
+const float			GameBase::KID_MOVE_SPEED_IN_BIG_BLOCKS = 4.0f;
+const BlockType		GameBase::KID_STEP = 2;
 const float			GameBase::KID_RUN_COMPARED_TO_WALK = 2.5f;
 const float			GameBase::USE_TOOL_TIME = 0.5f;
+const float			GameBase::SWITCH_TOOL_TIME = 0.2f;
+const float			GameBase::PICK_STUFF_TIME = 0.5f;
+const float			GameBase::DROP_STUFF_TIME = 0.5f;
+const int			GameBase::MINUTES_IN_HOUR = 60;
+const int			GameBase::HOUR_IN_DAY = 24;
+const int			GameBase::DAYS_IN_SEASON = 30;
 const string		GameBase::EMPTY_STRING = "";
 
 const int			GameBase::DETECT_SPLIT = 2;
@@ -30,6 +36,7 @@ void GameBase::init() {
     // Linker Create
 	GameLinker::create<SoilLinker>(soilLinkerCode, &linkerData);
 	GameLinker::create<BedLinker>(bedLinkerCode, &linkerData);
+	GameLinker::create<DefaultLinker>(defaultLinkerCode, &linkerData);
 
     // Object Create
     GameObject::create(GameObject::ground, farmPicCode, "farmBackground", "", BlockPos(PxPos(960, 640)), WalkType::allWalk, &stuffData, "FarmBackground.csb")
@@ -55,21 +62,21 @@ void GameBase::init() {
 	bedComb->childrenPos().push_back(BlockPos::zero);
 	bedComb->setChildrenLinker(BASE.getLinker(bedLinkerCode));
 
-	GameObject::create(GameObject::BigType::stuff, toolHoe, "锄头", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Hoe.csb")
+	GameObject::create(GameObject::BigType::stuff, toolHoe, "Tool Hoe", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Hoe.csb")
 		->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::BigType::stuff, toolWaterCan, "浇水壶", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WaterCan.csb")
+	GameObject::create(GameObject::BigType::stuff, toolWaterCan, "Tool WaterCan", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WaterCan.csb")
 		->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::BigType::stuff, toolPotatoSeed, "土豆种子", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "PotatoSeed.csb")
+	GameObject::create(GameObject::BigType::stuff, toolPotatoSeed, "Tool PotatoSeed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "PotatoSeed.csb")
 		->setPickable(false)->setDropable(false)->setQuality(1);
 
 	ObjPtr potatoComb = GameObject::create(GameObject::combStatue, stuffPotatoStart, "", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData);
 	potatoComb->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::BigType::seed, stuffPotatoWithered, "枯萎的土豆", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WitherPotato.csb", potatoComb)
+	GameObject::create(GameObject::BigType::seed, stuffPotatoWithered, "Withered Potato", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WitherPotato.csb", potatoComb)
 		->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::BigType::seed, stuffPotatoSeed, "地里的土豆种子", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Seed.csb", potatoComb)
+	GameObject::create(GameObject::BigType::seed, stuffPotatoSeed, "Potato Seed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Seed.csb", potatoComb)
 		->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::BigType::plant, stuffPotatoLittle, "地里的土豆苗", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "LittlePlant.csb", potatoComb)
-		->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::BigType::plant, stuffPotatoLittle, "Little Potato", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "LittlePlant.csb", potatoComb)
+		->setPickable(true)->setDropable(true);
 
 	
 
@@ -85,8 +92,8 @@ void GameBase::init() {
 		"KidBack.csb",
 		"KidBack.csb"
 	};
-	GameObject::create(GameObject::BigType::kid, kidNormalCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "KidFace.csb")
-		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2));// ->setFacingPicture(kidfacing);
+	GameObject::create(GameObject::BigType::kid, kidNormalCode, "kid", "", BigBlockPos(1, 2), WalkType::noneWalk, &stuffData, "KidFace.csb")
+		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2))->setFacingPicture(kidfacing);
 
     // Scene Create
 	ObjPtr farmsc = GameObject::create(GameObject::BigType::background, farmSceneCode, "farmScene", "", BlockPos(200, 200), WalkType::allWalk, &sceneData, "Grass.csb", nullptr, BlockPos::zero, BlockPos::zero);
@@ -113,6 +120,9 @@ void GameBase::init() {
 	// Event Create
 	GameEvent::create<StartGameEvent>(startGameEventCode, &eventData);
 	GameEvent::create<DayPassEvent>(dayPassEventCode, &eventData);
+
+	// internal
+	setDefaultLinker();
 }
 
 BlockPos BlockPos::dirToBlock(Direction dir) {
@@ -273,10 +283,13 @@ GameCommand GameObject::translate(float* arrOfKeys) {
 		return GameCommand::emptyCmd;
 }
 
-JudgeReturn GameObject::link(GameCommand gcmd, EventPtr& out_event, GameObjectJudge& judge) {
+JudgeReturn GameObject::link(GameCommand gcmd, EventPtr& out_event, GameObjectJudge& judge, float& timeSec, float& delaySec, LockType& locktype) {
     if (this->linker() != nullptr) {
         LinkerReturn sec = this->linker()->link(gcmd, judge);
         out_event = sec.eve;
+		timeSec = sec.lockTime;
+		delaySec = sec.delayTime;
+		locktype = sec.lock;
         return sec.judge;
     } else {
         out_event = nullptr;
@@ -395,6 +408,15 @@ HumanPtr GameBase::getHuman(BaseCode code) {
 		return nullptr;
 }
 
+void GameBase::setDefaultLinker() {
+	auto linker = BASE.getLinker(defaultLinkerCode);
+	for (auto &obj : stuffData) {
+		if (obj != nullptr && obj->linker() == nullptr) {
+			obj->linker() = linker;
+		}
+	}
+}
+
 bool GameEvent::start(LiveObjPtr obj) {
     return true;
 }
@@ -416,7 +438,10 @@ LinkerReturn GameLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 }
 
 GameCommand GameTranslator::translate(float* arrOfKeys) {
-    return convert(arrOfKeys);
+	if (arrOfKeys != nullptr)
+		return convert(arrOfKeys);
+	else
+		return emptyCmd;
 }
 
 int GameBase::cmdWalkOrRun(GameCommand cmd) {

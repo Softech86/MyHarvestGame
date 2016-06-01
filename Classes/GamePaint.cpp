@@ -85,18 +85,24 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 }
 
 LiveCode GamePaint::objMove(LiveCode object, const PxPos& newpos, MoveType type, float timeSec, float delaySec){
-	PxPos newpos2 = mix(newpos);
-	object->runAction(
-		cocos2d::Sequence::create(
-		cocos2d::DelayTime::create(delaySec),
-		cocos2d::MoveTo::create(timeSec, newpos2.toVec2()),
-		NULL
-		)
-	);
-	//cocos2d::log("object move:");
-	//string str = std::to_string(newpos2.x) + ", " + std::to_string(newpos2.y) + " : " + std::to_string(timeSec) + " - " +std::to_string(delaySec);
-	//cocos2d::log(str.c_str());
-	return object;
+	PxPos newpos2 = mix(newpos); 
+	if (delaySec == 0) {
+		if (timeSec == 0)
+			object->setPosition(newpos.toVec2());
+		else
+			object->runAction(cocos2d::MoveTo::create(timeSec, newpos.toVec2()));
+		return object;
+	}
+	else {
+		CocoFunc sch = [timeSec, object, newpos](float dt) {
+			if (timeSec == 0)
+				object->setPosition(newpos.toVec2());
+			else
+				object->runAction(cocos2d::MoveTo::create(timeSec, newpos.toVec2()));
+		};
+		GameLive::api_delayTime(sch, delaySec, "move" + std::to_string((int)object), object);
+		return object;
+	}
 }
 
 LiveCode GamePaint::objRotate(LiveCode object, float olddegree, float newdegree, float timeSec){
@@ -114,7 +120,7 @@ LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, fl
 			*timePassed = 0;
 			float *timeUse = new float;
 			*timeUse = timeSec;
-			float *delta = new float; 
+			float *delta = new float;
 			*delta = newalpha - oldalpha;
 			int repeat = timeSec / LIVE.api_getLoopFreq();
 			auto sch = [object, timePassed, timeUse, delta, oldalpha, newalpha](float dt) {
@@ -133,6 +139,8 @@ LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, fl
 			cocos2d::Director::getInstance()->getScheduler()->schedule(sch, object, LIVE.api_getLoopFreq(), repeat - 1, delaySec, false, "AlphaFade" + std::to_string((int)object));
 		}
 	}
+	else
+		cocos2d::log("%xd alpha: %f -> %f + %f + %f", (int)object, oldalpha, newalpha, timeSec, delaySec);
     return object;
 }
 

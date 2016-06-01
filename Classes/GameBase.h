@@ -175,8 +175,6 @@ public:
 	TransPtr& translator() { return this->_translator; }
 	string& littlePicture() { return this->_littlePicture; }
 	string* getFacingPicture() { 
-		for (int i = 0; i < 10; i++)
-			cocos2d::log(_facingPicture[i].c_str());
 		return this->_facingPicture;
 	}
 	GameObject* const setFacingPicture(string* newArray) {
@@ -201,11 +199,12 @@ public:
 	GameObject* const setQuality(int quality) { this->_quality = quality; return this; }
 
 	int getCount() { return this->_count; }
+	GameObject* const setCount(int count) { this->_count = count; return this; }
 
 	GameCommand translate(float* arrOfKeys);
 
 	SHCP_BASE(GameObject);
-	virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event, GameObjectJudge& judge);
+	virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event, GameObjectJudge& judge, float& timeSec, float& delaySec, LockType& locktype);
 	virtual LiveCode customPaint(LiveCode father, const BlockPos& pos, int dotOrder);
 	// DO NOT call paint/repaint/replace/... on the same object in this method
 	virtual void afterPaint(LiveCode obj);
@@ -298,14 +297,14 @@ private:
 	// ×´Ì¬×ªÒÆÅÐ¶¨
 	vector<int> waterNeeded;
 	vector<SeasonType> season;
-	virtual inline bool isWithered(int water, int sun, SeasonType currentSeason) {
+	virtual inline bool isWithered(int water, int sun, int currentSeason) {
 		for (auto sea : this->season) {
 			if (sea == currentSeason)
 				return false;
 		}
 		return true;
 	};
-	virtual inline int levelUpRule(int water, int sun, SeasonType currentSeason) {
+	virtual inline int levelUpRule(int water, int sun, int currentSeason) {
 		for (int index = 1; index < (int)waterNeeded.size(); index++) {
 			if (waterNeeded[index] > water)
 				return index - 1 < 0 ? 0 : index - 1;
@@ -330,7 +329,7 @@ public:
 		else
 			return nullptr;
 	}
-	virtual inline int levelUp(int water, int sun, SeasonType currentSeason) {
+	virtual inline int levelUp(int water, int sun, int currentSeason) {
 		if (isWithered(water, sun, currentSeason))
 			return WITHERED_INDEX;
 		return levelUpRule(water, sun, currentSeason);
@@ -386,6 +385,12 @@ public:
 	static const int DETECT_SPLIT;
 	static const GameCommand DEFAULT_COMMAND;
 	static const float USE_TOOL_TIME;
+	static const float SWITCH_TOOL_TIME;
+	static const float PICK_STUFF_TIME;
+	static const float DROP_STUFF_TIME;
+	static const int MINUTES_IN_HOUR;
+	static const int HOUR_IN_DAY;
+	static const int DAYS_IN_SEASON;
 	static const string EMPTY_STRING;
 
     void init();
@@ -403,6 +408,8 @@ public:
 	LinkerPtr getLinker(BaseCode code);
 	PlantPtr getPlant(BaseCode code);
 	HumanPtr getHuman(BaseCode code);
+
+	void setDefaultLinker();
 
 	const string& getStuffCSB(BaseCode code);
 };

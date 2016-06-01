@@ -60,24 +60,6 @@ JudgeReturn KidMoveUI::action(LiveCode node, float* keyarray, GameObjectJudge& j
 			LIVE.api_kidRunStep(BlockPos::cmdToDir(gcmd));
 		else
 			return judgeEnd;
-		/*float now = PAINT.clock();
-		LiveObjPtr kid = LIVE.api_kidGet();
-		if (kid != nullptr) {
-			if (LIVE.api_getActionLock(kid) > now)
-				return JudgeReturn::judgeEnd;
-			else {
-				BlockPos dist = LIVE.api_getScenePtr()->getStepDist(BlockPos::cmdToDir(gcmd));
-				auto iswalk = BASE.cmdWalkOrRun(gcmd);
-				if (iswalk == BASE.WALK) {
-					LIVE.api_kidWalk(dist);
-					LIVE.api_setActionLock(kid, now + LIVE.api_getScenePtr()->getKidWalkTime(dist));
-				}
-				else if (iswalk == BASE.RUN) {
-					LIVE.api_kidRun(dist);
-					LIVE.api_setActionLock(kid, now + LIVE.api_getScenePtr()->getKidRunTime(dist));
-				}
-			}
-		}*/
 	}
 	return JudgeReturn::judgeEnd;
 }
@@ -113,8 +95,8 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray, GameObjectJudge& judg
 		GameCommand gcmd = this->control()->translate(keyarray);
 		if (gcmd == useTool) {
 			LiveObjPtr kid = LIVE.api_kidGet();
-			if (kid == nullptr)
-				return judgeEnd;
+			if (kid == nullptr || LIVE.api_getKidHuman()->handIsEmpty() == false)
+				return judgeNextObject;
 			CocoFunc sch = [&judge](float dt) {
 				auto cmdtemp = LIVE.api_getKidHuman()->toolUse();
 				if (cmdtemp != emptyCmd)
@@ -137,8 +119,17 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray, GameObjectJudge& judg
 					LIVE.api_getKidHuman()->toolSet(toolusing + 1);
 				toolPaint(node);
 			}; 
-			LIVE.api_autoActionLock(kid, BASE.USE_TOOL_TIME, doNothing, sch, "switchTool");
+			LIVE.api_autoActionLock(kid, BASE.SWITCH_TOOL_TIME, doNothing, sch, "switchTool");
 			return judgeEnd;
+		}
+		else if (gcmd == pickNLook) {
+			LiveObjPtr kid = LIVE.api_kidGet();
+			if (kid == nullptr)
+				return judgeNextObject;
+			if (LIVE.api_humanDrop(kidHumanCode) == GameLive::done)
+				return judgeEnd;
+			else
+				return judgeNextObject;
 		}
 		else
 			return judgeNextObject;
@@ -148,21 +139,21 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray, GameObjectJudge& judg
 
 // 像这种Cycle和Just都是有种算时间差的感觉的，就是你只要一组按钮不是同一个时间差的话，是不会同时判定的吧
 GameCommand BasicMenuTranslator::translate(float* keyarray) {
-	if (LIVE.keyCyclePushedOnly(keyarray, GameKeyPress::buttonUp, KEY_CYCLE_SEC))
+	if (LIVE.keyCyclePushed(keyarray, GameKeyPress::buttonUp, KEY_CYCLE_SEC, true))
 		return selectUp;
-	else if (LIVE.keyCyclePushedOnly(keyarray, GameKeyPress::buttonDown, KEY_CYCLE_SEC))
+	else if (LIVE.keyCyclePushed(keyarray, GameKeyPress::buttonDown, KEY_CYCLE_SEC, true))
 		return selectDown;
-	else if (LIVE.keyCyclePushedOnly(keyarray, GameKeyPress::buttonLeft, KEY_CYCLE_SEC))
+	else if (LIVE.keyCyclePushed(keyarray, GameKeyPress::buttonLeft, KEY_CYCLE_SEC, true))
 		return selectLeft;
-	else if (LIVE.keyCyclePushedOnly(keyarray, GameKeyPress::buttonRight, KEY_CYCLE_SEC))
+	else if (LIVE.keyCyclePushed(keyarray, GameKeyPress::buttonRight, KEY_CYCLE_SEC, true))
 		return selectRight;
-	else if (LIVE.keyJustPushedOnly(keyarray, GameKeyPress::buttonA))
+	else if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonA, true))
 		return confirm;
-	else if (LIVE.keyJustPushedOnly(keyarray, GameKeyPress::buttonB))
+	else if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonB, true))
 		return cancel;
-	else if (LIVE.keyJustPushedOnly(keyarray, GameKeyPress::buttonSpace))
+	else if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonSpace, true))
 		return menu;
-	else if (LIVE.keyJustPushedOnly(keyarray, GameKeyPress::buttonStart))
+	else if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonStart, true))
 		return detail;
     return GameCommand::emptyCmd;
 }
@@ -224,24 +215,25 @@ GameCommand BasicMoveTranslator::translate(float* keyarray) {
 
 GameCommand BasicObjectTranslator::translate(float* keyarray) {
 	// 我迟早得写一个keyNotPush的判定啊
-	if(LIVE.keyPushed(keyarray, GameKeyPress::buttonA))
+	if(LIVE.keyJustPushed(keyarray, GameKeyPress::buttonA, false))
 		return GameCommand::pickNLook;
-	if (LIVE.keyPushed(keyarray, GameKeyPress::buttonB))
+	if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonB, false))
 		return GameCommand::useTool;
-	if (LIVE.keyPushed(keyarray, GameKeyPress::buttonC))
+	if (LIVE.keyPushed(keyarray, GameKeyPress::buttonC, false))
 		return GameCommand::switchTool;
 	//TODO
 
 	return GameCommand::emptyCmd;
 }
 
-GameCommand HandTranslator::translate(float* keyarray) {
-	if (LIVE.keyPushedOnly(keyarray, GameKeyPress::buttonA))
-		return GameCommand::drop;
-
-	//TODO
-	return GameCommand::emptyCmd;
-}
+//
+//GameCommand HandTranslator::translate(float* keyarray) {
+//	if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonA, true))
+//		return GameCommand::drop;
+//
+//	//TODO
+//	return GameCommand::emptyCmd;
+//}
 
 LinkerReturn SoilLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 	LinkerReturn result;
@@ -261,23 +253,23 @@ LinkerReturn SoilLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 			CocoFunc sche = [objPtr](float dt) {
 				LIVE.api_replaceObject(objPtr, BASE.getStuff(soilHoedCode));
 			};
-			LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilHoe" + std::to_string((int)objCode), &*objPtr);
+			LIVE.api_autoAnimeLock(judge.getHumanPtr(), BASE.USE_TOOL_TIME, doNothing, sche, "Hoing soil");;
 			result.judge = judgeEnd;
 		}
 		else if (tool == toolWaterCan && objCode == soilHoedCode) {
 			CocoFunc sche = [objPtr](float dt) {
 				LIVE.api_replaceObject(objPtr, BASE.getStuff(soilWateredCode));
 			};
-			LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilWater" + std::to_string((int)objCode), &*objPtr);
+			LIVE.api_autoAnimeLock(judge.getHumanPtr(), BASE.USE_TOOL_TIME, doNothing, sche, "Watering soil");
 			result.judge = judgeEnd;
 		}
 		else if (tool == toolPotatoSeed && (objCode == soilHoedCode || objCode == soilWateredCode)
 			&& !LIVE.api_hasPlant(LIVE.api_getSceneCode(), objPtr->MP())) {
 			CocoFunc sche = [objPtr, humancode](float dt) {
-				LIVE.api_addObject(stuffPotatoSeed, objPtr->MP());
-				LIVE.api_toolLose(humancode);
+				if(LIVE.api_addObject(stuffPotatoSeed, objPtr->MP()) != nullptr)
+					LIVE.api_toolLose(humancode);
 			};
-			LIVE.api_delayTime(sche, BASE.USE_TOOL_TIME, "soilWater" + std::to_string((int)objCode), &*objPtr);
+			LIVE.api_autoAnimeLock(judge.getHumanPtr(), BASE.USE_TOOL_TIME, doNothing, sche, "Planting potato");
 			result.judge = judgeEnd;
 		}
 	}
@@ -296,7 +288,20 @@ LinkerReturn BedLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 	return result;
 }
 
+LinkerReturn DefaultLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
+	LinkerReturn result;
+	result.eve = nullptr;
+	result.judge = judgeNextObject;
+	if (gcmd == pickNLook) {
+		if (judge.getObjectPtrJudgedNow()->getObj()->isPickable())
+			LIVE.api_kidPick(judge.getObjectPtrJudgedNow());
+	}
+	//TODO
+	return result;
+}
+
 bool StartGameEvent::start(LiveObjPtr obj) {
+	LIVE.api_UIStop(startPageCode);
 	LIVE.api_sceneICD(farmSceneCode, BlockPos(400, 400), BlockPos(PxPos(960, 640)));
 	LIVE.api_kidSet(kidNormalCode, BigBlockPos(3, 1), true);
 	/*
@@ -329,7 +334,6 @@ bool StartGameEvent::start(LiveObjPtr obj) {
 	LIVE.api_kidWalk(BigBlockPos(7, 0));
 	LIVE.api_kidWalk(BigBlockPos(-18, -11));*/
 
-	LIVE.api_UIStop(startPageCode);
 	LIVE.api_UIStart(kidMoveUICode);
 	LIVE.api_UIStart(toolUICode);
 	LIVE.api_allDimFrom();
