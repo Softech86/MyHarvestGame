@@ -2,21 +2,24 @@
 #include "GameBase.h"
 #include "GameLive.h"
 #include "GameUI.h"
+#include <fstream>
+#include <iostream>
 
 const PxPos			PxPos::zero = PxPos(0, 0);
 const BlockPos		BlockPos::zero = BlockPos(0, 0);
 const GameObject	GameObject::origin;
 
-const float			GameBase::KID_MOVE_SPEED_IN_BIG_BLOCKS = 4.0f;
-const BlockType		GameBase::KID_STEP = 2;
+const float			GameBase::KID_MOVE_SPEED_IN_BIG_BLOCKS = 6.0f;
+const BlockType		GameBase::KID_STEP = 1;
 const float			GameBase::KID_RUN_COMPARED_TO_WALK = 2.5f;
-const float			GameBase::USE_TOOL_TIME = 0.5f;
+const float			GameBase::USE_TOOL_TIME = 0.3f;
 const float			GameBase::SWITCH_TOOL_TIME = 0.2f;
-const float			GameBase::PICK_STUFF_TIME = 0.5f;
-const float			GameBase::DROP_STUFF_TIME = 0.5f;
+const float			GameBase::PICK_STUFF_TIME = 0.4f;
+const float			GameBase::DROP_STUFF_TIME = 0.4f;
 const int			GameBase::MINUTES_IN_HOUR = 60;
 const int			GameBase::HOUR_IN_DAY = 24;
 const int			GameBase::DAYS_IN_SEASON = 30;
+const BlockPos		GameBase::SCENE_DISPLAY_SIZE = BlockPos(PxPos(960, 640));
 const string		GameBase::EMPTY_STRING = "";
 
 const int			GameBase::DETECT_SPLIT = 2;
@@ -32,11 +35,13 @@ void GameBase::init() {
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
 	GameTranslator::create<BasicMoveTranslator>(basicMoveTranslator, &transData);
 	GameTranslator::create<BasicObjectTranslator>(basicObjectTranslator, &transData);
+	GameTranslator::create<ToolTranslator>(toolTranslator, &transData);
 
     // Linker Create
 	GameLinker::create<SoilLinker>(soilLinkerCode, &linkerData);
 	GameLinker::create<BedLinker>(bedLinkerCode, &linkerData);
 	GameLinker::create<DefaultLinker>(defaultLinkerCode, &linkerData);
+	GameLinker::create<PotatoLinker>(potatoLinkerCode, &linkerData);
 
     // Object Create
     GameObject::create(GameObject::ground, farmPicCode, "farmBackground", "", BlockPos(PxPos(960, 640)), WalkType::allWalk, &stuffData, "FarmBackground.csb")
@@ -44,21 +49,18 @@ void GameBase::init() {
 
 	ObjPtr soilComb = GameObject::create(GameObject::combStatue, soilCombCode, "soilComb", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData);
 	soilComb->setPickable(false)->setDropable(false);
-    GameObject::create(GameObject::ground, soilOriginCode, "soilOrigin", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilOrigin.csb", soilComb)
-		->setPickable(false)->setDropable(false);
-    GameObject::create(GameObject::ground, soilHoedCode, "soilHoed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilHoed.csb", soilComb)
-		->setPickable(false)->setDropable(false);
-    GameObject::create(GameObject::ground, soilWateredCode, "soilWatered", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilWatered.csb", soilComb)
-		->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::ground, soilOriginCode, "soilOrigin", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilOrigin.csb", soilComb);
+	GameObject::create(GameObject::ground, soilHoedCode, "soilHoed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilHoed.csb", soilComb);
+	GameObject::create(GameObject::ground, soilWateredCode, "soilWatered", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilWatered.csb", soilComb);
 	soilComb->setChildrenLinker(BASE.getLinker(soilLinkerCode));
 
 	ObjPtr bedComb = GameObject::create(GameObject::combStuff, bedCode, "bed", "", BigBlockPos(2, 4), WalkType::allWalk, &stuffData);
 	bedComb->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::furniture, bedDownCode, "bedDown", "", BigBlockPos(2, 4), WalkType::allWalk, &stuffData, "BedDown.csb", bedComb)
-		->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::furniture, bedDownCode, "bedDown", "", BigBlockPos(2, 4), WalkType::noneWalk, &stuffData, "BedDown.csb", bedComb)
+		->setCenter(BlockPos(BIG_TO_SMALL / 2, BIG_TO_SMALL * 2 - 1));
 	bedComb->childrenPos().push_back(BlockPos::zero);
-	GameObject::create(GameObject::ground, bedUpCode, "bedUp", "", BigBlockPos(2, 4), WalkType::allWalk, &stuffData, "BedUp.csb", bedComb)
-		->setPickable(false)->setDropable(false);
+	GameObject::create(GameObject::ground, bedUpCode, "bedUp", "", BigBlockPos(2, 4), WalkType::noneWalk, &stuffData, "BedUp.csb", bedComb)
+		->setCenter(BlockPos(BIG_TO_SMALL / 2, BIG_TO_SMALL * 2 - 1));
 	bedComb->childrenPos().push_back(BlockPos::zero);
 	bedComb->setChildrenLinker(BASE.getLinker(bedLinkerCode));
 
@@ -71,15 +73,17 @@ void GameBase::init() {
 
 	ObjPtr potatoComb = GameObject::create(GameObject::combStatue, stuffPotatoStart, "", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData);
 	potatoComb->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::BigType::seed, stuffPotatoWithered, "Withered Potato", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WitherPotato.csb", potatoComb)
-		->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::BigType::seed, stuffPotatoSeed, "Potato Seed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Seed.csb", potatoComb)
-		->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::BigType::plant, stuffPotatoLittle, "Little Potato", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "LittlePlant.csb", potatoComb)
-		->setPickable(true)->setDropable(true);
+	GameObject::create(GameObject::BigType::seed, stuffPotatoWithered, "Withered Potato", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WitherPotato.csb", potatoComb);
+	GameObject::create(GameObject::BigType::seed, stuffPotatoSeed, "Potato Seed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Seed.csb", potatoComb);
+	GameObject::create(GameObject::BigType::plant, stuffPotatoLittle, "Little Potato", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "LittlePlant.csb", potatoComb);
+	GameObject::create(GameObject::BigType::plant, stuffPotatoBig, "Big Potato", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "BigPotato.csb", potatoComb);
+	GameObject::create(GameObject::BigType::plant, stuffPotatoHarvest, "Harvest Potato", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "HarvestPotato.csb", potatoComb)
+		->setLinker(BASE.getLinker(potatoLinkerCode));
 
+	GameObject::create(GameObject::BigType::seed, houseCode, "House", "", BlockPos(PxPos(320, 290)), WalkType::noneWalk, &stuffData, "House.csb")
+		->setPickable(false)->setDropable(false)->setAlphaTXT("houseCanWalk.png.txt");
+	GameObject::create(GameObject::BigType::stuff, potatoCode, "Potato", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Potato.csb");
 	
-
 	// 
 	string kidfacing[] = { "KidFace.csb",
 		"KidFace.csb",
@@ -92,8 +96,8 @@ void GameBase::init() {
 		"KidBack.csb",
 		"KidBack.csb"
 	};
-	GameObject::create(GameObject::BigType::kid, kidNormalCode, "kid", "", BigBlockPos(1, 2), WalkType::noneWalk, &stuffData, "KidFace.csb")
-		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2))->setFacingPicture(kidfacing);
+	GameObject::create(GameObject::BigType::kid, kidNormalCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "KidFace.csb")
+		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2))->setMixedSize((BlockPos)BigBlockPos(1, 2) + BlockPos(0, 1))->setFacingPicture(kidfacing);
 
     // Scene Create
 	ObjPtr farmsc = GameObject::create(GameObject::BigType::background, farmSceneCode, "farmScene", "", BlockPos(200, 200), WalkType::allWalk, &sceneData, "Grass.csb", nullptr, BlockPos::zero, BlockPos::zero);
@@ -102,11 +106,20 @@ void GameBase::init() {
 			farmsc->children().push_back(getStuff(soilOriginCode));
 			farmsc->childrenPos().push_back(BigBlockPos(i, j));
 		}
-	farmsc->children().push_back(getStuff(bedCode));
+	farmsc->children().push_back(getStuff(houseCode));
 	farmsc->childrenPos().push_back(BigBlockPos(14, 4));
 
+	ObjPtr housesc = GameObject::create(GameObject::BigType::background, houseSceneCode, "House Inside Scene", "", BlockPos(90, 60), WalkType::allWalk, &sceneData, "HouseInside.csb", nullptr, BlockPos::zero, BlockPos::zero);
+	housesc->setAlphaTXT("houseInsideCanWalk.png.txt");
+	housesc->children().push_back(getStuff(bedCode));
+	housesc->childrenPos().push_back(BigBlockPos(20, 9));
+
+	// Jump Create
+	getStuff(houseCode)->setJumpTXT("houseCanWalk.png.txt", houseSceneCode, BlockPos(PxPos(450, 20)));
+	getScene(houseSceneCode)->setJumpTXT("houseInsideCanWalk.png.txt", farmSceneCode, BigBlockPos(17, 5));
+
 	// Plant Create
-	GamePlant::create(PlantCode::plantPotato, "", potatoComb, vector<int>{0, 0, 1}, vector<SeasonType> {haru}, &plantData);
+	GamePlant::create(PlantCode::plantPotato, "", potatoComb, vector<int>{0, 0, 1, 3, 5}, vector<SeasonType> {haru}, &plantData);
 
 
 	// Human Create
@@ -115,7 +128,7 @@ void GameBase::init() {
     // UI Create
     GameUI::create<StartPageUI>(startPageCode, "startPage", basicMenuTranslator,  &UIData);
 	GameUI::create<KidMoveUI>(kidMoveUICode, "kidMoveUI", basicMoveTranslator, &UIData);
-	GameUI::create<ToolUI>(toolUICode, "toolUI", basicObjectTranslator, &UIData);
+	GameUI::create<ToolUI>(toolUICode, "toolUI", toolTranslator, &UIData);
 
 	// Event Create
 	GameEvent::create<StartGameEvent>(startGameEventCode, &eventData);
@@ -275,6 +288,163 @@ void BlockPos::directionAreaSplit(const BlockPos& start, const BlockPos& size, c
 	out_size = area;
 }
 
+//bool GameAlpha::init(const BlockPos& _size, const string& BMPfile) {
+//	Byte* colors;
+//	BlockPos colorSize;
+//	if (readBMP(BMPfile, colors, colorSize)) {
+//		this->size = _size;
+//		return anaBMP(this->moveMap, _size, colors, colorSize);
+//	}
+//	return false;
+//}
+
+inline void blockconvert(const int& bigx, const int& bigy, const float& stepx, const float& stepy, int& outx, int& outy)
+{
+	outx = (float)bigx / stepx;
+	outy = (float)bigy / stepy;
+}
+
+bool GameAlpha::initTXT(const BlockPos& _size, const string& TXTfile) {
+	std::ifstream file(TXTfile, std::ios::binary);
+	if (!file) {
+		cocos2d::log("[ERROR] Cannot open the TXT file %s.", TXTfile.c_str());
+		return false;
+	}
+	this->size = _size;
+	char tempchar;
+	int capa = _size.x * _size.y;
+	this->moveMap = new Walkable[capa];
+	for (int iy = _size.y - 1; iy > -1; iy--) {
+		for (int ix = 0; ix < _size.x; ix++) {
+			file.read(&tempchar, sizeof(char));
+			auto blank = get2(this->moveMap, _size.x, _size.y, ix, iy);
+			if (blank == nullptr)
+				continue;
+			while (tempchar == '\n' || tempchar == '\r')
+				file.read(&tempchar, sizeof(char));
+			switch (tempchar)
+			{
+			case '1':
+				*blank = Walkable::jump;
+				break;
+			case '0':
+				*blank = Walkable::noWalk;
+				break;
+			case '7':
+				*blank = Walkable::canWalk;
+				break;
+			default:
+				break;
+			}
+			std::cout << tempchar;
+		}
+		std::cout << std::endl;
+	}
+	return true;
+}
+
+bool GameAlpha::readBMP(const string& BMPfile, Byte *&colors, BlockPos &out_colorSize) {
+	Byte *buffer1, *buffer2, *buffer3;
+	std::ifstream file(BMPfile, std::ios::binary);
+	if (!file) {
+		cocos2d::log("[ERROR] Cannot open the BMP file %s.", BMPfile.c_str());
+		return false;
+	}
+	buffer1 = new Byte[sizeof(BitmapFileHeader)];
+	buffer2 = new Byte[sizeof(BitmapInfoHeader)];
+	file.read((char*)buffer1, sizeof(BitmapFileHeader));
+	file.read((char*)buffer2, sizeof(BitmapInfoHeader));
+	BitmapFileHeader *header = (BitmapFileHeader*)buffer1;
+	BitmapInfoHeader *info = (BitmapInfoHeader*)buffer2;
+	if (header->bfType != 0x4D42) {
+		cocos2d::log("[ERROR] That's not a BMP file.");
+		return false;
+	}
+	buffer3 = new Byte[info->biSizeImage];
+	file.seekg(header->bfOffBits);
+	file.read((char*)buffer3, info->biSizeImage);
+	colors = buffer3;
+	out_colorSize = BlockPos(info->biWidth, info->biHeight);
+	delete buffer1;
+	delete buffer2;
+	return true;
+}
+
+inline int colorminus(int ra, int ga, int ba, int rb, int gb, int bb) {
+	return std::abs(ra - rb) + std::abs(ga - gb) + std::abs(ba - bb);
+}
+
+bool GameAlpha::anaBMP(Walkable* moveMap, const BlockPos& size, Byte* colors, const BlockPos& colorSize) {
+	if (colors == nullptr)
+		return false;
+	moveMap = new Walkable[size.x * size.y]{Walkable::nullWalk};
+	int *red = new int[size.x * size.y]{0};
+	int *green = new int[size.x * size.y]{0};
+	int *blue = new int[size.x * size.y]{0};
+	int *cnt = new int[size.x * size.y]{0};
+	float stepx = (float)colorSize.x / (float)size.x;
+	float stepy = (float)colorSize.y / (float)size.y;
+
+	for (int ix = 0; ix < colorSize.x; ix++) {
+		for (int iy = 0; iy < colorSize.y; iy++) {
+			Byte *colordot = get3(colors, colorSize.x, colorSize.y, ix, iy, 3);
+			if (colordot == nullptr) {
+				delete colors;
+				return false;
+			}
+			int smallx, smally;
+			blockconvert(ix, iy, stepx, stepy, smallx, smally);
+			int *rd = get2(red, size.x, size.y, smallx, smally),
+				*gd = get2(green, size.x, size.y, smallx, smally),
+				*bd = get2(blue, size.x, size.y, smallx, smally),
+				*cd = get2(cnt, size.x, size.y, smallx, smally);
+			if (rd && gd && bd && cd){
+				(*cd)++;
+				(*rd) += colordot[2];
+				(*bd) += colordot[1];
+				(*gd) += colordot[0];
+			}
+		}
+	}
+
+	for (int smallx = 0; smallx < size.x; smallx++) {
+		for (int smally = 0; smally < size.y; smally++) {
+			Walkable* dot = get2(moveMap, size.x, size.y, smallx, smally);
+			int *rd = get2(red, size.x, size.y, smallx, smally),
+				*gd = get2(green, size.x, size.y, smallx, smally),
+				*bd = get2(blue, size.x, size.y, smallx, smally),
+				*cd = get2(cnt, size.x, size.y, smallx, smally);
+			if (dot && rd && gd && bd && cd) {
+				int redAve = (*rd) / (*cd);
+				int greenAve = (*gd) / (*cd);
+				int blueAve = (*bd) / (*cd);
+				int distK = colorminus(redAve, greenAve, blueAve, 0, 0, 0),
+					distW = colorminus(redAve, greenAve, blueAve, 255, 255, 255),
+					distR = colorminus(redAve, greenAve, blueAve, 255, 0, 0),
+					distG = colorminus(redAve, greenAve, blueAve, 0, 255, 0);
+				int dist[] = { distK, distW, distR, distG };
+				std::sort(dist, dist + 4);
+				if (dist[0] == distK)
+					*dot = Walkable::noWalk;
+				else if (dist[0] == distW)
+					*dot = Walkable::canWalk;
+				else if (dist[0] == distR)
+					*dot = Walkable::jump;
+				else if (dist[0] == distG)
+					*dot = Walkable::slide;
+				else
+					*dot = Walkable::nullWalk;
+			}
+		}
+	}
+	delete red;
+	delete green;
+	delete blue;
+	delete cnt;
+	delete colors;
+	return true;
+}
+
 GameCommand GameObject::translate(float* arrOfKeys) {
 	if (isCustomTranslate()) {
 		return this->_translator->translate(arrOfKeys);
@@ -326,6 +496,26 @@ bool GameObject::onFaceChange(LiveObjPtr obj, BlockPos::Direction oldface, Block
 		LIVE.api_objectChangePicture(obj, this->getFacingPicture()[(int)newface]);
 		return true;
 	}
+}
+
+bool GameObject::getJump(const BlockPos& relative, const BlockPos& size, BaseCode& out_sceneCode, BlockPos& out_kidpos, bool getSlide) {
+	Walkable target = Walkable::jump;
+	if (getSlide)
+		target = Walkable::slide;
+	for (auto &layer : this->_jumpInfo) {
+		if (layer == nullptr)
+			continue;
+		for (int ix = 0; ix < size.x; ix++)
+			for (int iy = 0; iy < size.y; iy++) {
+				Walkable walk = layer->jump.getWalk(relative + BlockPos(ix, iy));
+				if (walk == target) {
+					out_sceneCode = layer->sceneCode;
+					out_kidpos = layer->kidPos;
+					return true;
+				}
+			}
+	}
+	return false;
 }
 
 const string& GamePlant::getCSB(int stage) {

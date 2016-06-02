@@ -55,9 +55,9 @@ JudgeReturn KidMoveUI::action(LiveCode node, float* keyarray, GameObjectJudge& j
 			return JudgeReturn::judgeNextObject;
 		auto iswalk = BASE.cmdWalkOrRun(gcmd);
 		if (iswalk == BASE.WALK)
-			LIVE.api_kidWalkStep(BlockPos::cmdToDir(gcmd));
+			LIVE.api_kidMoveStep(BlockPos::cmdToDir(gcmd), true, true);
 		else if (iswalk == BASE.RUN)
-			LIVE.api_kidRunStep(BlockPos::cmdToDir(gcmd));
+			LIVE.api_kidMoveStep(BlockPos::cmdToDir(gcmd), true, false);
 		else
 			return judgeEnd;
 	}
@@ -95,7 +95,7 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray, GameObjectJudge& judg
 		GameCommand gcmd = this->control()->translate(keyarray);
 		if (gcmd == useTool) {
 			LiveObjPtr kid = LIVE.api_kidGet();
-			if (kid == nullptr || LIVE.api_getKidHuman()->handIsEmpty() == false)
+			if (kid == nullptr)
 				return judgeNextObject;
 			CocoFunc sch = [&judge](float dt) {
 				auto cmdtemp = LIVE.api_getKidHuman()->toolUse();
@@ -217,12 +217,18 @@ GameCommand BasicObjectTranslator::translate(float* keyarray) {
 	// 我迟早得写一个keyNotPush的判定啊
 	if(LIVE.keyJustPushed(keyarray, GameKeyPress::buttonA, false))
 		return GameCommand::pickNLook;
+	//TODO
+
+	return GameCommand::emptyCmd;
+}
+
+GameCommand ToolTranslator::translate(float* keyarray) {
+	if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonA, false))
+		return GameCommand::pickNLook;
 	if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonB, false))
 		return GameCommand::useTool;
 	if (LIVE.keyPushed(keyarray, GameKeyPress::buttonC, false))
 		return GameCommand::switchTool;
-	//TODO
-
 	return GameCommand::emptyCmd;
 }
 
@@ -277,12 +283,51 @@ LinkerReturn SoilLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 	return result;
 }
 
+LiveCode TalkUI::start(){
+	return PAINT.nodeNew();
+	//TODO
+}
+
+JudgeReturn TalkUI::action(LiveCode node, float* keyarray, GameObjectJudge& judge) {
+	return judgeNextLayer;
+	//TODO
+}
+
+
 LinkerReturn BedLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 	LinkerReturn result;
 	result.eve = nullptr;
 	result.judge = judgeNextObject;
+	auto humanptr = judge.getHumanPtr();
+	if (gcmd == GameCommand::pickNLook && humanptr != nullptr) {
+		BlockPos dist = judge.getObjectPtrJudgedNow()->MPC() - humanptr->MP();
+		CocoFunc sch1 = [dist](float) {
+			LIVE.api_humanWalk(kidHumanCode, dist);
+		};
+		if (LIVE.api_autoActionLock(humanptr, 0.3f, doNothing, sch1, "goBed1")) {
+			CocoFunc sch2 = [humanptr](float) {
+				humanptr->setFace(humanptr, BlockPos::two);
+			};
+			LIVE.api_autoActionLock(humanptr, 0, doAfter, sch2, "goBed2", 0);
+			result.eve = BASE.getEvent(dayPassEventCode);
+			result.judge = judgeEnd;
+			result.delayTime = 0.5f;
+		}
+	}
+	return result;
+}
+
+LinkerReturn PotatoLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
+	LinkerReturn result;
 	if (gcmd == GameCommand::pickNLook) {
-		result.eve = BASE.getEvent(dayPassEventCode);
+		auto live = judge.getObjectPtrJudgedNow();
+		auto pota = LIVE.api_addObject(potatoCode, live->getMargin());
+		auto actres = LIVE.api_kidPick(pota);
+		if (actres == GameLive::ActionResult::done)
+			LIVE.api_removeObject(live);
+		else {
+			LIVE.api_removeObject(pota);
+		}
 		result.judge = judgeEnd;
 	}
 	return result;
@@ -302,7 +347,7 @@ LinkerReturn DefaultLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 
 bool StartGameEvent::start(LiveObjPtr obj) {
 	LIVE.api_UIStop(startPageCode);
-	LIVE.api_sceneICD(farmSceneCode, BlockPos(400, 400), BlockPos(PxPos(960, 640)));
+	LIVE.api_sceneICD(farmSceneCode, BASE.SCENE_DISPLAY_SIZE);
 	LIVE.api_kidSet(kidNormalCode, BigBlockPos(3, 1), true);
 	/*
 	LIVE.api_kidWalk(BigBlockPos(3, 18));

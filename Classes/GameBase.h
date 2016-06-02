@@ -27,13 +27,12 @@ public:
     GameAlpha() {
     }
 
-    GameAlpha(BlockPos size) : size(size) {
+	GameAlpha(const BlockPos& size) : size(size) {
     }
 
-    GameAlpha(BlockPos size, string BMPfile) {
-        //TODO
-    }
-
+	//bool init(const BlockPos& size, const string& BMPfile);
+	bool initTXT(const BlockPos& size, const string& TXTfile);
+	
     Walkable getWalk(BlockPos pos) {
         auto pw = get(this->moveMap, this->size, pos);
         if (pw == nullptr)
@@ -41,6 +40,9 @@ public:
         else
             return *pw;
     }
+
+	bool readBMP(const string& BMPfile, Byte* &colors, BlockPos &out_colorSize);
+	bool anaBMP(Walkable* moveMap, const BlockPos& size, Byte* colors, const BlockPos& colorSize);
 
     ~GameAlpha() {
         if (moveMap != nullptr)
@@ -77,9 +79,10 @@ private:
 	string _picture = "";
 	vector<ObjWeak> _children;
 	vector<BlockPos> _childrenPos;
-	WalkType _walktype = WalkType::noneWalk;
-	GameAlpha _alphaWalkableBMP;
-	vector<JumpData> _jumpInfo;
+	WalkType _walktype = WalkType::noneWalk; 
+	std::shared_ptr<GameAlpha> _alphaWalkableBMP;// 动静变量分离不彻底就TMD这里会有坑你知道吗
+	vector<std::shared_ptr<JumpData>> _jumpInfo;
+	BlockPos _mixedSize;
 
 	int _count = 1;
 	int _quality = 0; //这个数字在物品上表示质量，在工具上表示用一次的损耗度
@@ -121,6 +124,7 @@ public:
 		_picture(pic),
 		_anchor(anchor),
 		_walktype(walkable) {
+		setMixedSize(size);
 	}
 
 	static ObjPtr create(
@@ -137,8 +141,11 @@ public:
 		const BlockPos& position = BlockPos::zero) {
 		ObjPtr pt(new GameObject(type, code, name, description, size, walkable, pic, anchor, position));
 		T_push(container, pt, code);
-		if (father != nullptr)
+		if (father != nullptr) {
+			pt->setPickable(father->isPickable());
+			pt->setDropable(father->isDropable());
 			father->children().push_back(pt);
+		}
 		return pt;
 	}
 
@@ -159,8 +166,8 @@ public:
 	}
 	vector<BlockPos>& childrenPos() { return this->_childrenPos; }
 	WalkType& walktype() { return this->_walktype; }
-	GameAlpha& walkBMP() { return this->_alphaWalkableBMP; }
-	vector<JumpData>& jumpInfo() { return this->_jumpInfo; }
+	std::shared_ptr<GameAlpha> walkBMP() { return this->_alphaWalkableBMP; }
+	vector<std::shared_ptr<JumpData>>& jumpInfo() { return this->_jumpInfo; }
 	LinkerPtr& linker() { return this->_link; }
 
 	BlockPos getCenter() const { return this->_anchor; }
@@ -169,6 +176,11 @@ public:
 		for (auto &obj : this->children()) {
 			obj.lock()->linker() = lin;
 		}
+		return this;
+	}
+
+	GameObject* const setLinker(LinkerPtr lin) {
+		this->linker() = lin;
 		return this;
 	}
 
@@ -194,14 +206,45 @@ public:
 	bool isPickable() { return this->_pickable; }
 	bool isDropable() { return this->_dropable; }
 	int getQuality() { return this->_quality; }
+	BlockPos getMixedSize() { return this->_mixedSize; }
+	int getCount() { return this->_count; }
 	GameObject* const setPickable(bool pick) { this->_pickable = pick; return this; }
 	GameObject* const setDropable(bool drop) { this->_dropable = drop; return this; }
 	GameObject* const setQuality(int quality) { this->_quality = quality; return this; }
+	GameObject* const setMixedSize(const BlockPos& size) { this->_mixedSize = size; return this; }
+	//GameObject* const setAlphaBMP(const string& bmp) {
+	//	auto backup = this->_walktype;
+	//	this->_walktype = alphaWalk;
+	//	if (this->_alphaWalkableBMP == nullptr)
+	//		this->_alphaWalkableBMP = std::shared_ptr<GameAlpha>(new GameAlpha());
+	//	if (this->_alphaWalkableBMP->init(this->size(), bmp) == false) {
+	//		this->_walktype = backup;
+	//	}
+	//	return this;
+	//}
+	GameObject* const setAlphaTXT(const string& txt) {
+		auto backup = this->_walktype;
+		this->_walktype = alphaWalk;
+		if (this->_alphaWalkableBMP == nullptr)
+			this->_alphaWalkableBMP = std::shared_ptr<GameAlpha>(new GameAlpha());
+		if (this->_alphaWalkableBMP->initTXT(this->size(), txt) == false) {
+			this->_walktype = backup;
+		}
+		return this;
+	}
 
-	int getCount() { return this->_count; }
 	GameObject* const setCount(int count) { this->_count = count; return this; }
 
 	GameCommand translate(float* arrOfKeys);
+	
+	void setJumpTXT(const string& alphaTXT, BaseCode scenecode, const BlockPos& kidPos) {
+		std::shared_ptr<JumpData> jpt(new JumpData());
+		jpt->kidPos = kidPos;
+		jpt->sceneCode = scenecode;
+		if(jpt->jump.initTXT(this->size(), alphaTXT))
+			this->_jumpInfo.push_back(jpt);
+	}
+	bool getJump(const BlockPos& relative, const BlockPos& size, BaseCode& out_sceneCode, BlockPos& out_kidPos, bool getSlide = false);
 
 	SHCP_BASE(GameObject);
 	virtual JudgeReturn link(GameCommand gcmd, EventPtr& out_event, GameObjectJudge& judge, float& timeSec, float& delaySec, LockType& locktype);
@@ -392,6 +435,7 @@ public:
 	static const int HOUR_IN_DAY;
 	static const int DAYS_IN_SEASON;
 	static const string EMPTY_STRING;
+	static const BlockPos SCENE_DISPLAY_SIZE;
 
     void init();
 	static const int WALK = 1, RUN = 2, OTHERCMD = 0;

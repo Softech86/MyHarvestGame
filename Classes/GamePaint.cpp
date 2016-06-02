@@ -16,6 +16,7 @@ float matrix(float a11, float a12, float a21, float a22) {
 }
 
 PxPos GamePaint::unmix(const PxPos& input) {
+	/*
 	float down = matrix(dx.x, dy.x, dx.y, dy.y);
 	if (down == 0) {
 		cocos2d::log("那个智障把两单位向量设为平行的？");
@@ -23,7 +24,8 @@ PxPos GamePaint::unmix(const PxPos& input) {
 	}
 	else {
 		return PxPos(matrix(input.x, dy.x, input.y, dy.y) / down, matrix(dx.x, input.x, dx.y, input.y) / down);
-	}
+	}*/
+	return input;
 }
 
 void GamePaint::init() {

@@ -106,32 +106,36 @@ enum GameCommand {
 };
 
 enum StuffCode {
-    farmPicCode,
-    kidNormalCode,
-	
+	farmPicCode,
+	kidNormalCode,
+
 	toolStart,
 	toolHoe,
 	toolWaterCan,
 	toolPotatoSeed,
 	toolEnd,
 
-    soilCombCode,
-    soilOriginCode,
-    soilHoedCode,
-    soilWateredCode,
+	soilCombCode,
+	soilOriginCode,
+	soilHoedCode,
+	soilWateredCode,
 
 	bedCode,
 	bedUpCode,
 	bedDownCode,
 
+	houseCode,
+
 	plantStuffStart,
 	stuffPotatoStart,
 	stuffPotatoWithered,
-	stuffPotatoSeed, 
+	stuffPotatoSeed,
 	stuffPotatoLittle,
-	stuffPotatoBig, 
+	stuffPotatoBig,
 	stuffPotatoHarvest,
 	plantStuffEnd,
+
+	potatoCode,
 };
 
 enum PlantCode {
@@ -155,6 +159,7 @@ enum HumanCode {
 enum SceneCode {
 	sceneStart,
     farmSceneCode,
+	houseSceneCode,
 	sceneEnd,
 };
 
@@ -162,11 +167,13 @@ enum TransCode {
     basicMenuTranslator,
 	basicMoveTranslator,
 	basicObjectTranslator,
+	toolTranslator,
 };
 
 enum LinkerCode {
 	soilLinkerCode,
 	bedLinkerCode,
+	potatoLinkerCode,
 	defaultLinkerCode,
 };
 
@@ -181,8 +188,6 @@ enum EventCode {
 	dayPassEventCode,
 };
 
-
-
 typedef int BlockType;
 typedef float PxType;
 typedef float NumType;
@@ -190,6 +195,29 @@ typedef int BaseCode;
 typedef cocos2d::Node* LiveCode;
 typedef std::function<void(float)> CocoFunc;
 typedef std::function<int()> TimeFunc;
+typedef uint8_t Byte;
+
+struct BitmapFileHeader {
+	WORD  bfType;
+	DWORD bfSize;
+	WORD  bfReserved1;
+	WORD  bfReserved2;
+	DWORD bfOffBits;
+};
+
+struct BitmapInfoHeader {
+	DWORD  biSize;
+	LONG   biWidth;
+	LONG   biHeight;
+	WORD   biPlanes;
+	WORD   biBitCount;
+	DWORD  biCompression;
+	DWORD  biSizeImage;
+	LONG   biXPelsPerMeter;
+	LONG   biYPelsPerMeter;
+	DWORD  biClrUsed;
+	DWORD  biClrImportant;
+};
 
 class GameLive;
 class GameBase;
@@ -501,13 +529,29 @@ struct LinkerReturn {
 	float lockTime = 3;
 	float delayTime = 0;
 	LockType lock = doNothing;
-    JudgeReturn judge = judgeEnd;
+    JudgeReturn judge = judgeNextObject;
 };
 
 template<class Item>
-inline Item* get(Item* array, BlockPos size, BlockPos pos) {
+inline Item* get(Item* array, const BlockPos& size, const BlockPos& pos) {
     if (pos.x >= 0 && pos.y >= 0 && pos.x < size.x && pos.y < size.y)
         return array + pos.x * size.y + pos.y;
     else
         return nullptr;
+}
+
+template<class Item>
+inline Item* get2(Item* array, int sx, int sy, int px, int py) {
+	if (px >= 0 && py >= 0 && px < sx && py < sy)
+		return array + px * sy + py;
+	else
+		return nullptr;
+}
+
+template<class Item>
+inline Item* get3(Item* array, int sx, int sy, int px, int py, int multiplier) {
+	if (px >= 0 && py >= 0 && px < sx && py < sy)
+		return array + (px * sy + py) * multiplier;
+	else
+		return nullptr;
 }

@@ -71,7 +71,7 @@ private:
     WalkType& walktype() {
         return this->_obj->walktype();
     }
-    GameAlpha& walkBMP() {
+    std::shared_ptr<GameAlpha> walkBMP() {
         return this->_obj->walkBMP();
     }
 	int& zValue() {
@@ -107,6 +107,7 @@ public:
 	BlockPos MPC() {
 		return this->MP() + this->getCenter();
 	}
+	BlockPos getMargin() { return this->_margin; }
 public:
 	BlockPos::Direction getFace() { return this->_face; }
 	void setFace(LiveObjPtr selfptr, BlockPos::Direction face) {
@@ -321,7 +322,7 @@ public:
     // add a stuff to the scene, this LiveObject should not be painted at the moment
     void add(LiveObjPtr j);
     void remove(LiveObjPtr ptr, bool recursive = true);
-    void movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive = true);
+	void movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive = true, bool faceChange = true);
     void replace(LiveObjPtr oldptr, ObjPtr newptr);
 	void changePicture(LiveObjPtr ptr, const string& picture);
 
@@ -343,9 +344,9 @@ public:
 
 
 	LiveObjPtr humanSet(BaseCode humancode, ObjPtr child, const BlockPos& margin, bool copy = true);
-	void humanMove(BaseCode humancode, const BlockPos& vec, MoveType type, float time, bool recursive = true);
-	void humanWalk(BaseCode humancode, const BlockPos& vec);
-	void humanRun(BaseCode humancode, const BlockPos& vec);
+	void humanMove(BaseCode humancode, const BlockPos& vec, MoveType type, float time, bool recursive = true, bool faceChange = true);
+	void humanWalk(BaseCode humancode, const BlockPos& vec, bool faceChange = true);
+	void humanRun(BaseCode humancode, const BlockPos& vec, bool faceChange = true);
 	void humanRemove(BaseCode humancode, bool recursive = true);
 	void humanReplace(BaseCode humancode, ObjPtr newhuman);
 
@@ -377,7 +378,8 @@ public:
     BlockPos getWindowRelativePosition(const BlockPos& pos);
     static BlockPos getObjectRelativePosition(const BlockPos& pos, LiveObjPtr ptr);
     Walkable detect(LiveObjPtr ptr, const LiveDot& ld, const BlockPos& current, LiveObjPtr& out_jumpObj);
-    Walkable detect(LiveObjPtr ptr, const BlockPos::Direction& dir, LiveObjPtr& out_jumpObj);
+	Walkable detect(LiveObjPtr ptr, const BlockPos& vec, const BlockPos::Direction& dir, LiveObjPtr& out_jumpObj);
+	bool getJump(LiveObjPtr human, const BlockPos& dist, LiveObjPtr eventLayer, BaseCode& out_scenecode, BlockPos& out_kidpos, bool getSlide = false);
 
     enum detectMoveReturn {
         canMove, cannotMove, breakedMove
@@ -457,6 +459,10 @@ class GameLiveHuman {
 	int _stage = 0;
 	map<BaseCode, int> _haoGanDu;
 
+	bool _toolOn = true;
+	bool _pickOn = true;
+	bool _dropOn = true;
+
 public:
 	enum RangeType { objectRelative, zeroRelative };
 	// judge range is rectangle now
@@ -485,8 +491,9 @@ public:
 	void removeLive(){ this->_liveObj = nullptr; }
 	vector<ObjPtr>& getPack() { return this->_pack; }
 	ObjPtr getHand() { return this->_handObject; }
-	bool setHand(const ObjPtr& obj) {
-		if (this->_handObject == nullptr) {
+	void setHand(const ObjPtr& obj) { this->_handObject = obj; }
+	bool pickHand(const ObjPtr& obj) {
+		if (this->_handObject == nullptr && _pickOn) {
 			this->_handObject = obj;
 			return true;
 		}
@@ -494,7 +501,7 @@ public:
 			return false;
 	}
 	ObjPtr dropHand() {
-		if (this->_handObject != nullptr && this->_handObject->isDropable()) {
+		if (this->_handObject != nullptr && this->_handObject->isDropable() && _dropOn) {
 			int cnt = 0;
 			if ((cnt = this->_handObject->getCount()) > 0) {
 				this->_handObject->setCount(cnt - 1);
@@ -530,15 +537,19 @@ public:
 		else
 			return false;
 	}
+	void setDropSwitch(bool onoff) { this->_dropOn = onoff; }
+	void setToolSwitch(bool onoff) { this->_toolOn = onoff; }
+	void setPickSwitch(bool onoff) { this->_pickOn = onoff; }
 
 	ObjPtr* hasStuffInPack(ObjPtr obj);
 	bool putIntoPack();
 
 	int getToolCount() { return this->_toolCount; }
+	int getEnergy() { return this->_energy; }
 
 	void getRange(BlockPos& out_start, BlockPos& out_size);
 	GameCommand toolUse() { 
-		if (_tool > toolStart && _tool < toolEnd && _toolCount > 0)
+		if (_tool > toolStart && _tool < toolEnd && _toolCount > 0 && _toolOn && handIsEmpty())
 			return useTool;
 		//TODO 这里之后还可以做减体力之类的事情
 		else
@@ -809,12 +820,13 @@ public:
 	void api_allDim(bool black = true, float timeSec = 1);
 	void api_allDimFrom(bool black = true, float timeSec = 1);
 
-    void api_sceneInit(BaseCode sceneCode, BlockPos mazeSize);
+    void api_sceneInit(BaseCode sceneCode);
     void api_sceneDisplay();
     // calculate the object on scene according to the time or something more is processed here
     void api_sceneCalculate();
-    void api_sceneICD(BaseCode sceneCodev, const BlockPos& mazeSize, const BlockPos& windowSize);
+    void api_sceneICD(BaseCode sceneCode, const BlockPos& windowSize);
 	void api_sceneClose();
+	void api_sceneChange(BaseCode sceneCode, const BlockPos& windowSize, bool kidSet, const BlockPos& kidposnew);
 	void api_trashClearWillTakeALongTime() { for (auto sc : _trash) delete sc; _trash.clear(); }
 
 	void api_dayPass();
@@ -832,19 +844,17 @@ public:
 		return api_getHuman(kidHumanCode);
 	}
 
-	void api_humanSet(BaseCode humancode, BaseCode stuffCode, const BlockPos& pos, bool focus);
-	void api_humanSet(BaseCode humancode, ObjPtr ptr, const BlockPos& pos, bool focus, bool copy = true);
-	void api_humanWalk(BaseCode humancode, const BlockPos& vec);
-	void api_humanRun(BaseCode humancode, const BlockPos& vec);
-	void api_humanWalkStep(BaseCode humancode, BlockPos::Direction dir, LockType lock = doNothing);
-	void api_humanRunStep(BaseCode humancode, BlockPos::Direction dir, LockType lock = doNothing);
+	LiveObjPtr api_humanSet(BaseCode humancode, BaseCode stuffCode, const BlockPos& pos, bool focus);
+	LiveObjPtr api_humanSet(BaseCode humancode, ObjPtr ptr, const BlockPos& pos, bool focus, bool copy = true);
+	void api_humanWalk(BaseCode humancode, const BlockPos& vec, bool faceChange = true);
+	void api_humanRun(BaseCode humancode, const BlockPos& vec, bool faceChange = true);
+	void api_humanMoveStep(BaseCode humancode, BlockPos::Direction dir, LockType lock = doNothing, bool faceChange = true, bool walk = true);
 
-	void api_kidSet(BaseCode stuffCode, const BlockPos& pos, bool focus);
-    void api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus, bool copy = true);
-    void api_kidWalk(const BlockPos& vec);
-	void api_kidRun(const BlockPos& vec);
-    void api_kidWalkStep(BlockPos::Direction dir);
-	void api_kidRunStep(BlockPos::Direction dir);
+	LiveObjPtr api_kidSet(BaseCode stuffCode, const BlockPos& pos, bool focus);
+	LiveObjPtr api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus, bool copy = true);
+	void api_kidWalk(const BlockPos& vec, bool faceChange = true);
+	void api_kidRun(const BlockPos& vec, bool faceChange = true);
+	void api_kidMoveStep(BlockPos::Direction dir, bool faceChange = true, bool walk = true);
 
 private:
 	int pickZValue(ObjPtr human);
@@ -852,6 +862,11 @@ private:
 	BlockPos dropPosition(LiveObjPtr human);
 	void pickAnimation(BaseCode humancode, LiveObjPtr stuff);
 	void dropAnimation(BaseCode humancode, LiveObjPtr stuff, const BlockPos& dropPosition);
+
+private:
+	void intoBagAnimation(BaseCode humancode, LiveObjPtr stuff);
+	void outBagAnimation(BaseCode humancode, LiveObjPtr stuff);
+	void switchToolAnimation(BaseCode humancode, BaseCode toolcode);
 
 public:
 	ActionResult api_humanPick(BaseCode humancode, LiveObjPtr stuff);
@@ -862,7 +877,7 @@ public:
 
 	LiveObjPtr api_addObject(BaseCode stuffCode, const BlockPos& margin, bool autoAdd = true, int z = 0);
 	LiveObjPtr api_addObject(ObjPtr object, const BlockPos& margin, bool autoAdd = true, bool copy = true, int z = 0);
-	void api_moveObject(LiveObjPtr obj, const BlockPos& vec, MoveType type, float timeSec, bool recursive = true);
+	void api_moveObject(LiveObjPtr obj, const BlockPos& vec, MoveType type, float timeSec, bool recursive = true, bool faceChange =true);
 	void api_replaceObject(LiveObjPtr obj, ObjPtr ptr);
 	void api_changePicture(LiveObjPtr obj, const string& newcsb);
 	void api_removeObject(LiveObjPtr obj, bool recursive = true, bool autoRemove = true);
@@ -901,11 +916,12 @@ public:
 	static bool api_autoActionLock(LiveObjPtr obj, float timeSec, LockType type, const CocoFunc& func, const string& key, float delaySec = 0, int repeat = 0, int interval = 0);
 	static bool api_autoAnimeLock(LiveObjPtr obj, float timeSec, LockType type, const CocoFunc& func, const string& key, float delaySec = 0, int repeat = 0, int interval = 0);
 
-	static bool api_delegateTimeCompare(float& lockvalue, const float& timeSec, const TimeFunc& func, int& out_return, const string& logname);
-	static bool api_delegateActionTimeCompare(LiveObjPtr& obj, const float& timeSec, const TimeFunc& func, int& out_return, const string& logname);
+	static bool api_delegateTimeCompare(float& lockvalue, const float& timeSec, const TimeFunc& func, int& out_return, const string& logName);
+	static bool api_delegateActionTimeCompare(LiveObjPtr& obj, const float& timeSec, const TimeFunc& func, int& out_return, const string& logName);
+	static bool api_delegateAnimeTimeCompare(LiveObjPtr& obj, const float& timeSec, const TimeFunc& func, int& out_return, const string& logName);
 
     ~GameLive() {
-		for (auto sce : _trash)
+		for (auto &sce : _trash)
 			delete sce;
         if (_scene != nullptr)
             delete _scene;

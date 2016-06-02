@@ -94,6 +94,13 @@ public:
 	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
 };
 
+class TalkUI : public GameUI {
+public:
+	SHCP_OVERRIDE(GameUI, TalkUI);
+	virtual LiveCode start() override;
+	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
+};
+
 class BasicMenuTranslator : public GameTranslator {
 public:
 	SHCP_OVERRIDE(GameTranslator, BasicMenuTranslator);
@@ -112,6 +119,11 @@ public:
 	virtual GameCommand translate(float* keyarray) override;
 };
 
+class ToolTranslator : public GameTranslator {
+public:
+	SHCP_OVERRIDE(GameTranslator, ToolTranslator);
+	virtual GameCommand translate(float* keyarray) override;
+};
 //
 //class HandTranslator : public GameTranslator {
 //public:
@@ -128,6 +140,12 @@ public:
 class BedLinker : public GameLinker {
 public:
 	SHCP_OVERRIDE(GameLinker, BedLinker);
+	virtual LinkerReturn link(GameCommand, GameObjectJudge&) override;
+};
+
+class PotatoLinker : public GameLinker {
+public:
+	SHCP_OVERRIDE(GameLinker, PotatoLinker);
 	virtual LinkerReturn link(GameCommand, GameObjectJudge&) override;
 };
 
