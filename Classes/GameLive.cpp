@@ -5,6 +5,7 @@
 #include "GamePaint.h"
 #include <cmath>
 #include <list>
+#include <thread>
 
 // <----->
 void GameLive::enter() {
@@ -216,24 +217,26 @@ ObjPtr* GameLiveHuman::hasStuffInPack(ObjPtr obj) {
 	return nullptr;
 }
 
-bool GameLiveHuman::putIntoPack() {
-	if (this->_handObject != nullptr) {
+ObjPtr GameLiveHuman::putIntoPack() {
+	if (this->handIsEmpty() == false) {
 		ObjPtr* objp = hasStuffInPack(this->_handObject);
 		if (objp == nullptr || *objp == nullptr) {
 			if ((int)this->getPack().size() < this->_packMaxSize) {
+				auto result = this->_handObject;
 				this->getPack().push_back(this->_handObject);
-				return true;
+				this->clearHand();
+				return result;
 			}
 			else
-				return false;
+				return nullptr;
 		}
 		else {
 			(*objp)->setCount((*objp)->getCount() + this->_handObject->getCount());
-			return true;
+			return (*objp);
 		}
 	}
 	else
-		return false;
+		return nullptr;
 }
 
 void GameLiveHuman::getRange(BlockPos& out_start, BlockPos& out_size) {
@@ -391,11 +394,13 @@ void GameLiveScene::rangeGetObjects(BlockPos start, BlockPos size, map<LiveObjPt
 			else {
 				for (int i = (int)ld->size() - 1; i > -1; i--){
 					// 含有自己的点一律不统计
-					if ((*ld)[i] == itself)
+					if ((*ld)[i].lock() == itself)
 						goto step_break_two;
 				}
 				for (int i = 0; i < (int)ld->size(); i++){
-					LiveObjPtr ptr = (*ld)[i];
+					LiveObjPtr ptr = (*ld)[i].lock();
+					if (ptr == nullptr)
+						cocos2d::log("[ERROR] nullptr in range");
 					if (ptr != this->liveScene) {
 						if (useCache(cache, endlt, ptr, i, 5)) {
 							auto mapfind = out_objects.find(ptr);
@@ -434,6 +439,13 @@ void GameLiveScene::kidRangeObjects(vector<LiveObjPtr>& out_result) {
 	sortObjects(LIVE.api_kidGet()->MPC(), LIVE.api_kidGet()->getFace(), objects, out_result);
 }
 
+void GameLiveScene::blockMapClear() {
+	int capa = mazeSize.x * mazeSize.y;
+	for (int i = 0; i < capa; i++) {
+		blockMap[i].clear();
+	}
+}
+
 int GameLiveScene::insertPositionCompare(LiveObjPtr lhs, LiveObjPtr rhs) {
 	if (lhs == nullptr) return -1;
 	if (rhs == nullptr) return 1;
@@ -447,7 +459,7 @@ int GameLiveScene::insertPositionCompare(LiveObjPtr lhs, LiveObjPtr rhs) {
 LiveDot::iterator GameLiveScene::findInsertPosition(LiveDot& ld, LiveObjPtr obj) {
 	auto i = ld.begin();
 	for (; i != ld.end(); ++i) {
-		if (insertPositionCompare(*i, obj) > 0)
+		if (insertPositionCompare(i->lock(), obj) > 0)
 			break;
 	}
 	return i;
@@ -468,7 +480,7 @@ int GameLiveScene::liveDotInsert(LiveDot &ld, LiveObjPtr obj) {
 
 int GameLiveScene::liveDotOrderFind(LiveDot &ld, LiveObjPtr obj) {
 	for (auto i = 0; i < (int)ld.size(); ++i) {
-		if (ld[i] == obj)
+		if (ld[i].lock() == obj)
 			return i;
 	}
 	return -1;
@@ -498,9 +510,10 @@ void GameLiveScene::dotRemoveLayer(LiveDot& ld, const LiveObjPtr ptr) {
     if (ptr == nullptr)
         return;
     for (auto i = ld.begin(); i != ld.end();) {
-        if (*i == nullptr) {
+		auto tempptr = i->lock();
+        if (tempptr == nullptr) {
             i = ld.erase(i);
-        } else if (*i == ptr) {
+        } else if (tempptr == ptr) {
             i = ld.erase(i);
             break;
         } else {
@@ -554,7 +567,7 @@ int GameLiveScene::blockIndexQuery(LiveObjPtr ptr) {
 	if (!ld)
 		return -1;
 	for (int i = 0; i < (int)(ld->size()); i++) {
-		if ((*ld)[i] == ptr)
+		if ((*ld)[i].lock() == ptr)
 			return i;
 	}
 	return -1;
@@ -723,8 +736,9 @@ void GameLiveScene::dotZOrderRefresh(const BlockPos& pos) {
 		return;
 	auto& ld = *ldp;
 	for (int i = 0; i < (int)ld.size(); i++) {
-		if (ld[i]->MP() == pos) {
-			ld[i]->autoZOrder(i);
+		auto tempptr = ld[i].lock();
+		if (tempptr->MP() == pos) {
+			tempptr->autoZOrder(i);
 		}
 	}
 }
@@ -747,7 +761,7 @@ int GameLiveScene::stuffFind(BaseCode stuff, const BlockPos& position) {
 	else {
 		LiveDot& ld = *ldp;
 		for (int i = 0; i < (int)ld.size(); i++) {
-			if (ld[i]->getObj()->code() == stuff)
+			if (ld[i].lock()->getObj()->code() == stuff)
 				return i;
 		}
 		return -1;
@@ -824,9 +838,10 @@ void GameLiveScene::init(const BlockPos& mazeSize) {
 	this->codeRoot = PAINT.nodeNew();
 	this->codeStuff = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
 	this->codeEffect = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+
 	this->codeDim = PAINT.objAddToObj(this->codeEffect, "", PxPos::zero);
 	this->codeLens = PAINT.objAddToObj(this->codeEffect, "", PxPos::zero);
-	// 这样的三句话也就确定了三个基本图层的顺序
+
 	this->codeBackground = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
     this->codeFlat = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
     this->codeCube = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
@@ -837,11 +852,46 @@ void GameLiveScene::init(const BlockPos& mazeSize) {
 }
 
 void GameLiveScene::setScene(BaseCode scene) {
+	if (scene == -1)
+		return;
 	this->scene = BASE.getScene(scene);
 	// scene.margin() always be zero
 	this->liveScene = this->add(this->scene, BlockPos::zero);
 	// viewPoint initialize to the left-under corner of the area you can see in this scene
 	this->viewPoint = this->scene->padding();
+	this->setTime = LIVE.api_getGameTime();
+}
+
+void GameLiveScene::resetScene() {
+	blockMapClear();
+	this->codeRoot = PAINT.nodeNew();
+	this->codeStuff = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+	this->codeEffect = PAINT.objAddToObj(this->codeRoot, "", PxPos::zero);
+
+	this->codeDim = PAINT.objAddToObj(this->codeEffect, "", PxPos::zero);
+	this->codeLens = PAINT.objAddToObj(this->codeEffect, "", PxPos::zero);
+
+	this->codeBackground = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
+	this->codeFlat = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
+	this->codeCube = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
+	this->codeCloud = PAINT.objAddToObj(this->codeStuff, "", PxPos::zero);
+
+	dict.clear();
+	this->liveScene = nullptr;
+	nodeCache.clear();
+	viewMovingUntil = 0;
+	setScene(getCode());
+}
+
+LiveObjPtr GameLiveScene::getStuff(const BlockPos& position, int index) {
+	LiveDot* ld = get(this->blockMap, this->mazeSize, position);
+	if (ld == nullptr)
+		return nullptr;
+	if (index < (int)ld->size() && index > -1) {
+		return (*ld)[index].lock();
+	}
+	else
+		return nullptr;
 }
 
 LiveObjPtr GameLiveScene::add(ObjPtr obj, const BlockPos& margin, bool copy, int z) {
@@ -849,6 +899,17 @@ LiveObjPtr GameLiveScene::add(ObjPtr obj, const BlockPos& margin, bool copy, int
 	live = make(obj, margin, copy, z);
     add(live);
 	return live;
+}
+
+LiveObjPtr GameLiveScene::findReplace(BaseCode oldobject, ObjPtr newobject, const BlockPos& mp, bool copy, int z, bool removeRecursive) {
+	int ind = this->stuffFind(oldobject, mp);
+	if (ind == -1)
+		return nullptr;
+	auto old = getStuff(mp, ind);
+	if (old == nullptr)
+		return nullptr;
+	remove(old, removeRecursive);
+	return add(newobject, mp - newobject->padding(), copy, z);
 }
 
 void GameLiveScene::cacheAdd(LiveObjPtr live) {
@@ -903,8 +964,8 @@ void GameLiveScene::remove(LiveObjPtr live, bool recursive) {
     } else {
         mapRemove(live, false);
     }
-	live->erase(this->getParent(live));
     dictRemove(live->paintCode());
+	live->erase(this->getParent(live));
 }
 
 void GameLiveScene::movemove(LiveObjPtr ptr, const BlockPos& vec, MoveType move, float timeSec, bool recursive, bool faceChange) {
@@ -1059,6 +1120,7 @@ PxPos GameLiveScene::focus(const PxPos& newpos) {
 	PxPos scSze = this->scene->size();
 	PxPos scPad = this->scene->padding();
 	PxPos result;
+
 	if (newpos.x + winSze.x / 2 > scSze.x + scPad.x) {
 		result.x = (int)(scSze.x + scPad.x - winSze.x);
 		if (result.x < scPad.x)
@@ -1070,6 +1132,11 @@ PxPos GameLiveScene::focus(const PxPos& newpos) {
 	else {
 		result.x = (int)(newpos.x - winSze.x / 2);
 	}
+
+	if (scSze.x < winSze.x)
+		result.x = -(winSze.x - scSze.x) / 2;
+	
+
 	if (newpos.y + winSze.y / 2 > scSze.y + scPad.y) {
 		result.y = (int)(scSze.y + scPad.y - winSze.y);
 		if (result.y < scPad.y)
@@ -1081,6 +1148,9 @@ PxPos GameLiveScene::focus(const PxPos& newpos) {
 	else {
 		result.y = (int)(newpos.y - winSze.y / 2);
 	}
+
+	if (scSze.y < winSze.y)
+		result.y = -(winSze.y - scSze.y) / 2;
 	return result;
 }
 
@@ -1096,18 +1166,22 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 	PxPos cache = this->viewPoint;
 	GameLiveScene::LineReturn flag1 = this->DistanceToCentralLine(oldRela, kidMove, dist1);
 	PxPos moveAll = result - cache;
-	float time1 = PxPos::time(dist1, speed * SMALL_BLOCK_PX);
-	float sqrSum = PxPos::distance(PxPos::zero, kidMove);
-	float timeAll = PxPos::time(kidMove, speed * SMALL_BLOCK_PX);
-	if (flash)
+	double time1 = PxPos::time(dist1, speed * SMALL_BLOCK_PX);
+	double sqrSum = PxPos::distance(PxPos::zero, kidMove);
+	double timeAll = PxPos::time(kidMove, speed * SMALL_BLOCK_PX);
+
+	//log
+	cocos2d::log("\nViewPointMove [%f, %f] {", cache.x, cache.y);
+
+	if (flash) {
 		setViewPoint(result);
+	}
 	else if (result == cache) {
 		moveViewPoint(result, 0, timeAll);
-		return;
 	}
 	else {
 		if (moveAll.x == 0 || moveAll.y == 0) {
-			float time3;
+			double time3;
 			if (kidMove == PxPos::zero)
 				time3 = 0;
 			else if ((int)std::abs(moveAll.x) > 0) {
@@ -1117,16 +1191,17 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 				time3 = std::abs(moveAll.y) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 			}
 			moveViewPoint(result, time3, time1);
+			double ta31 = timeAll - time3 - time1;
+			if (ta31 > WUCHA)
+				moveViewPoint(result, 0, ta31);
 
-			if (timeAll - time3 - time1 > 0)
-				moveViewPoint(result, 0, timeAll - time3 - time1);
 		}
 		else {
 			PxPos onelineRela = oldRela + dist1;
 			PxPos dist2 = PxPos::zero;
 			GameLiveScene::LineReturn flag2 = DistanceToTheOtherLine(onelineRela, kidMove, dist2);
 			PxPos move2 = distProcess(dist2, flag2, moveAll);
-			float time2;
+			double time2;
 			if (kidMove == PxPos::zero)
 				time2 = 0;
 			else if ((int)std::abs(move2.x) > 0) {
@@ -1135,25 +1210,28 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 			else {
 				time2 = std::abs(move2.y) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 			}
-
-			moveViewPoint(cache + move2, time2, time1);
+			if (time2 > WUCHA && time1 > WUCHA)
+				moveViewPoint(cache + move2, time2, time1);
 			if (flag2 == NEVER) {
-				if (timeAll - time2 - time1 > 0)
-					moveViewPoint(result, 0, timeAll - time2 - time1);
+				double ta21 = timeAll - time2 - time1;
+				if (ta21 > WUCHA)
+					moveViewPoint(result, 0, ta21);
 				return;
 			}
 			else {
-				float time25 = PxPos::time(dist2, speed * SMALL_BLOCK_PX);
-				if (time25 > time2) {
-					moveViewPoint(cache + move2, 0, time25 - time2);
+				double time25 = PxPos::time(dist2, speed * SMALL_BLOCK_PX);
+				double time255 = time25 - time2;
+				if (time255 > WUCHA) {
+					moveViewPoint(cache + move2, 0, time255);
 				}
 				PxPos move3 = moveBreak(moveAll, move2, kidMove);
 				PxPos dist3 = move3;
-				float time3 = PxPos::time(dist3, speed * SMALL_BLOCK_PX);
-				moveViewPoint(cache + move2 + move3, time3, 0);
+				double time3 = PxPos::time(dist3, speed * SMALL_BLOCK_PX);
+				if (time3 > WUCHA)
+					moveViewPoint(cache + move2 + move3, time3, 0);
 
 				PxPos move4 = (PxPos)moveAll - move2 - move3;
-				float time4;
+				double time4;
 				if (kidMove == PxPos::zero)
 					time4 = 0;
 				else if ((int)std::abs(move4.x) > 0) {
@@ -1163,32 +1241,17 @@ void GameLiveScene::focusMoveViewPoint(LiveObjPtr obj, const PxPos& oldpos, cons
 					time4 = std::abs(move4.y) / std::abs(speed * SMALL_BLOCK_PX / sqrSum * kidMove.y);
 				}
 				PxPos dist4 = kidMove - dist1 - dist2 - dist3;
-				moveViewPoint(result, time4, 0);
-				float time45 = PxPos::time(dist4, speed * SMALL_BLOCK_PX);
-				if (time45 > time4)
-					moveViewPoint(result, 0, time45 - time4);
-
-			/*	cocos2d::log("move:");
-				string str = std::to_string(move2.x) + " " + std::to_string(move2.y);
-				cocos2d::log(str.c_str());
-				str = std::to_string(move3.x) + " " + std::to_string(move3.y);
-				cocos2d::log(str.c_str());
-				str = std::to_string(move4.x) + " " + std::to_string(move4.y);
-				cocos2d::log(str.c_str());
-				cocos2d::log("dist:");
-				str = std::to_string(dist1.x) + " " + std::to_string(dist1.y);
-				cocos2d::log(str.c_str());
-				str = std::to_string(dist2.x) + " " + std::to_string(dist2.y);
-				cocos2d::log(str.c_str());
-				str = std::to_string(dist3.x) + " " + std::to_string(dist3.y);
-				cocos2d::log(str.c_str());
-				cocos2d::log("time:");
-				str = std::to_string(time1) + " " + std::to_string(time2) + " " + std::to_string(time3) + " " + std::to_string(time4) + " ";
-				cocos2d::log(str.c_str());
-*/
+				if (time4 > WUCHA)
+					moveViewPoint(result, time4, 0);
+				double time45 = PxPos::time(dist4, speed * SMALL_BLOCK_PX);
+				double time455 = time45 - time4;
+				if (time455 > WUCHA)
+					moveViewPoint(result, 0, time455);
 			}
 		}
 	}
+	//log
+	cocos2d::log("}\n");
 }
 
 void GameLiveScene::setViewPoint(const PxPos& point) {
@@ -1211,9 +1274,11 @@ bool GameLiveScene::isFocusOnHuman(BaseCode humancode) {
 
 // rollback是一个对于dalyaSec为负数的确认提示
 void GameLiveScene::moveViewPoint(const PxPos& point, float timeSec, float delaySec, bool rollback) {
+	//log
+	float now = PAINT.clock();
+	cocos2d::log("\t@%f ->[%f, %f] + %lf + %lf", now, point.x, point.y, timeSec, delaySec);
 	if (!rollback && delaySec < 0)
 		delaySec = 0;
-	float now = PAINT.clock();
 	if (this->viewMovingUntil <= now) {
 		this->viewMovingUntil = now;
 	}
@@ -1347,34 +1412,34 @@ BlockPos GameLiveScene::getObjectRelativePosition(const BlockPos& pos, LiveObjPt
 }
 
 Walkable GameLiveScene::detect(LiveObjPtr ptr, const LiveDot& ld, const BlockPos& current, LiveObjPtr& out_jumpObj) {
-    bool noPass = false;
+	LiveObjPtr stopLayer = nullptr;
     LiveObjPtr jumpLayer = nullptr;
     LiveObjPtr slideLayer = nullptr;
     for (auto i = ld.begin(); i != ld.end(); i++) {
         // variable i cannot be null because it's an iterator, and it's not the end
         // so *i is ok
-        if (*i == nullptr)
+        LiveObjPtr live = i->lock();
+        if (live == nullptr)
             continue;
         else {
-            LiveObjPtr live = *i;
 			if (live == ptr)
 				continue;
             WalkType wt = live->walktype();
             if (wt == WalkType::allWalk)
                 continue;
             else if (wt == WalkType::noneWalk) {
-                noPass = true;
+				stopLayer = live;
                 break;
             } else if (wt == WalkType::alphaWalk) {
-                BlockPos rela = getObjectRelativePosition(current, *i);
+                BlockPos rela = getObjectRelativePosition(current, live);
                 std::shared_ptr<GameAlpha> &alpha = live->walkBMP();
 				if (alpha == nullptr)
 					return canWalk;
                 Walkable able = alpha->getWalk(rela);
                 if (able == Walkable::nullWalk)
                     continue;
-                else if (able == Walkable::noWalk) {
-                    noPass = true;
+				else if (able == Walkable::noWalk) {
+					stopLayer = live;
                     break;
                 } else if (able == Walkable::canWalk) {
                     continue;
@@ -1389,8 +1454,9 @@ Walkable GameLiveScene::detect(LiveObjPtr ptr, const LiveDot& ld, const BlockPos
         }
     }
     Walkable result = Walkable::nullWalk;
-    if (noPass) {
+    if (stopLayer != nullptr) {
         result = Walkable::noWalk;
+		out_jumpObj = stopLayer;
     } else if (slideLayer != nullptr) {
         result = Walkable::slide;
         out_jumpObj = slideLayer;
@@ -1416,8 +1482,8 @@ Walkable GameLiveScene::detect(LiveObjPtr ptr, const BlockPos& vec, const BlockP
 	dx = out_size.x;
 	dy = out_size.y;
 
-	//这里我们要干一点特殊的事情就是如果他一开始就是卡位的话，就是有点是不可动的话，那么就要允许他动
-	bool preBlock = true;
+	//这里我们要干一点特殊的事情就是如果他一开始就是卡位的话，就是有点是不可动的话且没有别的物件再阻碍他的话，是的我们现在只是检测一层，那么就要允许他动
+	LiveObjPtr preBlockLayer = nullptr;
 	for (BlockType i = 0; i < dx; i++) {
 		for (BlockType j = 0; j < dy; j++) {
 			auto current = out_start + BlockPos(i, j);
@@ -1427,13 +1493,12 @@ Walkable GameLiveScene::detect(LiveObjPtr ptr, const BlockPos& vec, const BlockP
 			else {
 				auto dotres = detect(ptr, *ld, current, out_jumpObj);
 				if (dotres == Walkable::noWalk) {
-					preBlock = false;
+					preBlockLayer = out_jumpObj;
 					goto step_second;
 				}
 			}
 		}
 	}
-
 
 step_second:
 	out_start += vec;
@@ -1451,8 +1516,12 @@ step_second:
                 if (dotres == Walkable::nullWalk)
                     continue;
                 else if (dotres == Walkable::noWalk) {
-                    noPass = true;
-					goto step_out;
+					if (out_jumpObj != preBlockLayer) {
+						noPass = true;
+						goto step_out;
+					}
+					else
+						continue;
                 } else if (dotres == Walkable::canWalk) {
                     continue;
                 } else if (dotres == Walkable::jump) {
@@ -1468,7 +1537,7 @@ step_second:
 
 step_out:
     Walkable result = Walkable::nullWalk;
-    if (noPass && preBlock)
+    if (noPass)
         result = Walkable::noWalk;
     else if (slideLayer != nullptr) {
         result = Walkable::slide;
@@ -1604,8 +1673,10 @@ BlockPos GameLiveScene::nextVectorToApproachALine(const BlockPos& lineTarget, co
 	return BlockPos::zero;
 }
 
-GameLiveScene::detectMoveReturn GameLiveScene::detectMoveOneObject(LiveObjPtr obj, const BlockPos& vec, MoveType move, float timeSec) {
-	return GameLiveScene::detectMoveReturn::canMove;
+GameLiveScene::~GameLiveScene() {
+	PAINT.nodeRelease(codeRoot);
+	if (blockMap != nullptr)
+		delete[] blockMap;
 }
 
 void GameTime::timeAdd(int _minutes) {
@@ -1694,9 +1765,9 @@ void GameLivePlant::onSceneCreate(GameLiveScene* newscene) {
 		return;
 	newscene->add(this->getObject(), this->_plantPos, true);
 	if (this->_added)
-		newscene->add(BASE.getStuff(soilWateredCode), this->_plantPos, true);
+		newscene->findReplace(soilOriginCode, BASE.getStuff(soilWateredCode), this->_plantPos, true);
 	else
-		newscene->add(BASE.getStuff(soilHoedCode), this->_plantPos, true);
+		newscene->findReplace(soilOriginCode, BASE.getStuff(soilHoedCode), this->_plantPos, true);
 }
 
 void GameLivePlant::onDayPass() {
@@ -1716,6 +1787,28 @@ void GameLiveHuman::copyFrom(HumanPtr human) {
 	this->_energy = human->fullEnergy;
 	this->_name = human->name;
 	// 未完待续 TODO
+}
+
+LiveCode GameStoryLoader::next() {
+	this->stop();
+	auto ptEle = this->_content.next(_index);
+	if (ptEle == nullptr) {
+		LIVE.api_stopStory(this);
+		return nullptr;
+	}
+	return this->_activeNode = ptEle->action(*this);
+}
+
+void GameStoryLoader::stop() {
+	auto ptEle = this->_content.now(_index);
+	if (ptEle != nullptr) {
+		ptEle->stop(*this);
+		this->_activeNode = nullptr;
+	}
+}
+
+void GameStoryLoader::end() {
+	LIVE.api_stopStory(this);
 }
 
 int GameLive::keyAddTime() {
@@ -1779,14 +1872,14 @@ bool GameLive::api_setSceneSize(const BlockPos& size) {
 	}
 }
 
-void GameLive::api_UIStart(BaseCode uicode) {
+LiveCode GameLive::api_UIStart(BaseCode uicode) {
     UIPtr uip = BASE.getUI(uicode);
-    api_UIStart(uip);
+    return api_UIStart(uip);
 }
 
-void GameLive::api_UIStart(UIPtr uip) {
+LiveCode GameLive::api_UIStart(UIPtr uip) {
     if (uip == nullptr)
-        return;
+        return nullptr;
     LiveUIPtr glu(new GameLiveUI(uip));
     if (uip->type() == GameUI::up) {
         this->_UIUp.push_back(glu);
@@ -1797,6 +1890,7 @@ void GameLive::api_UIStart(UIPtr uip) {
 	if (glu->id() != nullptr)
 		glu->id()->setLocalZOrder(_UIUp.size() + _UIDown.size() + 1);
 	PAINT.nodeDisplay(glu->id());
+	return glu->id();
 }
 
 vector<LiveUIPtr>::iterator GameLive::_UIPtrQuery(LiveCode id, GameUI::UIType& out_type) {
@@ -1842,7 +1936,7 @@ void GameLive::api_UIStop(LiveCode id) {
 	GameUI::UIType type = GameUI::UIType::empty;
 	auto lt = _UIPtrQuery(id, type);
 	if (type != GameUI::empty && *lt != nullptr){
-		(*lt)->UI()->stop();
+		(*lt)->UI()->stop(id);
 		PAINT.objRemove((*lt)->id(), PAINT.mainsc);
 	}
 	if (type == GameUI::empty)
@@ -1857,7 +1951,7 @@ void GameLive::api_UIStop(BaseCode id) {
 	GameUI::UIType type = GameUI::UIType::empty;
 	auto lt = _UIPtrQuery(id, type);
 	if (type != GameUI::empty && *lt != nullptr){
-		(*lt)->UI()->stop();
+		(*lt)->UI()->stop((*lt)->id());
 		PAINT.objRemove((*lt)->id(), PAINT.mainsc);
 	}
 	if (type == GameUI::empty)
@@ -1890,13 +1984,32 @@ void GameLive::api_eventStart(EventPtr eve, LiveObjPtr obj) {
     }
 }
 
+bool GameLive::api_sceneSwitch(BaseCode sceneCode) {
+	if (this->_scene->getCode() == sceneCode)
+		return true;
+	for (auto psc : this->_archiveScene) {
+		if (psc->getCode() == sceneCode && psc != nullptr) {
+			this->_scene = psc;
+			return true;
+		}
+	}
+	this->_scene = nullptr;
+	return false;
+}
+
 void GameLive::api_sceneInit(BaseCode sceneCode) {
-	this->_scene = new GameLiveScene();
-	ObjPtr scene = BASE.getScene(sceneCode);
-	if (scene == nullptr)
-		return;
-	this->_scene->init(scene->getMixedSize());
-	this->_scene->setScene(sceneCode);
+	if (api_sceneSwitch(sceneCode)) {
+		this->_scene->resetScene();
+	}
+	else {
+		this->_scene = new GameLiveScene();
+		ObjPtr scene = BASE.getScene(sceneCode);
+		if (scene == nullptr)
+			return;
+		this->_archiveScene.push_back(this->_scene);
+		this->_scene->init(scene->getMixedSize());
+		this->_scene->setScene(sceneCode);
+	}
 }
 
 void GameLive::api_sceneDisplay() {
@@ -1917,18 +2030,42 @@ void GameLive::api_sceneICD(BaseCode sceneCode, const BlockPos& windowSize) {
 	api_setSceneSize(windowSize);
 }
 
+void GameLive::api_sceneSCD(BaseCode sceneCode, const BlockPos& windowSize) {
+	if (api_sceneSwitch(sceneCode)) {
+		api_sceneCalculate();
+		api_sceneDisplay();
+		api_setSceneSize(windowSize);
+	}
+	else
+		api_sceneICD(sceneCode, windowSize);
+}
+
+void GameLive::api_sceneDCD(BaseCode sceneCode, const BlockPos& windowSize) {
+	if (api_sceneSwitch(sceneCode)) {
+		auto &settime = _scene->setTime;
+		auto nowtime = api_getGameTime();
+		if (settime.year == nowtime.year && settime.season == nowtime.season && settime.date == nowtime.date) {
+			api_sceneSCD(sceneCode, windowSize);
+		}
+		else
+			api_sceneICD(sceneCode, windowSize);
+	}
+	else
+		api_sceneICD(sceneCode, windowSize);
+}
+
 void GameLive::api_sceneClose() {
 	if (this->_scene != nullptr) {
 		if (this->_creature)
 			this->_creature->onSceneClose(this->_scene);
+		PAINT.nodeRetain(this->_scene->rootCode());
 		PAINT.nodeRemove(this->_scene->rootCode());
-		this->_trash.push_back(this->_scene);
 	}
 }
 
 void GameLive::api_sceneChange(BaseCode sceneCode, const BlockPos& windowSize, bool kidSet, const BlockPos& kidposnew) {
 	if (this->_scene) {
-		api_allDim(true, 1);
+		api_allDim(true, 0.5);
 		CocoFunc sch = [this, sceneCode, windowSize, kidSet, kidposnew](float) {
 			LiveObjPtr human = LIVE.api_humanGet(kidHumanCode);
 			bool flag = false;
@@ -1940,20 +2077,33 @@ void GameLive::api_sceneChange(BaseCode sceneCode, const BlockPos& windowSize, b
 				stuff = human->getObj()->code();
 				focus = this->_scene->isFocusOnHuman(kidHumanCode);
 				facing = human->getFace();
+				api_humanRemove(kidHumanCode, true);
 			}
 
 			api_sceneClose();
-			api_sceneICD(sceneCode, windowSize);
+			api_sceneDCD(sceneCode, windowSize);
 
 			if (flag) {
 				LiveObjPtr kid2 = api_kidSet(stuff, kidposnew, focus);
 				kid2->setFace(kid2, facing);
 			}
 
-			api_allDimFrom(true, 1);
+			api_allDimFrom(true, 0.5);
 		};
-		api_autoLock(this->_animeUntil, 2, doAfter, sch, "Scene Change", 1.2f);
+		api_autoLock(this->_animeUntil, 1.5f, doAfter, sch, "Scene Change", 0.7f);
 	}
+}
+
+void GameLive::trashClear() {
+	unsigned int sz = _trash.size();
+	for (unsigned int i = 0; i < sz; i++)
+		delete _trash[i]; 
+	_trash.clear(); 
+}
+
+void GameLive::api_trashClear() {
+	std::thread t1(std::bind(&GameLive::trashClear, this));
+	t1.detach();
 }
 
 void GameLive::api_dayPass() {
@@ -1996,7 +2146,7 @@ void GameLive::api_dayPass() {
 			api_allDimFrom(true, 1);
 		};
 		api_autoLock(this->_animeUntil, 3, doAfter, sch, "Day Pass", 1.1f);
-		//api_trashClearWillTakeALongTime(); // 酌情添加，否则内存好像会吃不消好像又不会
+		api_trashClear();
 	}
 }
 
@@ -2150,7 +2300,7 @@ void GameLive::api_humanMoveStep(BaseCode humancode, BlockPos::Direction dir, Lo
 					return;
 			}
 			else {
-				//这里应该加上NPC退场的代码
+				api_humanRemove(humancode, true);
 			}
 		}
 		else if (detres == Walkable::noWalk) {
@@ -2161,7 +2311,13 @@ void GameLive::api_humanMoveStep(BaseCode humancode, BlockPos::Direction dir, Lo
 		}
 		else {
 		}
-		//TODO
+		//TODO slide?
+	}
+}
+
+void GameLive::api_humanRemove(BaseCode humancode, bool recursive) {
+	if (this->_scene) {
+		this->_scene->humanRemove(humancode, recursive);
 	}
 }
 
@@ -2237,7 +2393,7 @@ GameLive::ActionResult GameLive::api_humanPick(BaseCode humancode, LiveObjPtr st
 			|| human == nullptr
 			|| stuff == nullptr
 			|| human->pickHand(stuff->getObj()) == false) {
-			return GameLive::DELEGATE_ROLLBACK;
+			return GameLive::TIMEFUNC_ROLLBACK;
 		}
 		LiveObjPtr temp;
 		if ((temp = human->getHandLive()) != nullptr) {
@@ -2259,7 +2415,7 @@ GameLive::ActionResult GameLive::api_humanPick(BaseCode humancode, LiveObjPtr st
 	bool timepass = api_delegateActionTimeCompare(humanlive, BASE.PICK_STUFF_TIME, sche, tempres, "pick1");
 
 	if (timepass)
-		if (tempres == DELEGATE_ROLLBACK)
+		if (tempres == TIMEFUNC_ROLLBACK)
 			return ActionResult::cannotDo;
 		else
 			return ActionResult::done;
@@ -2274,7 +2430,7 @@ GameLive::ActionResult GameLive::api_humanDrop(BaseCode humancode) {
 		if (humanlive == nullptr
 			|| humanlive->getObj() == nullptr
 			|| human == nullptr)
-			return GameLive::DELEGATE_ROLLBACK;
+			return GameLive::TIMEFUNC_ROLLBACK;
 
 		ObjPtr obj = human->dropHand();
 		// 如果手上空了的话
@@ -2283,12 +2439,12 @@ GameLive::ActionResult GameLive::api_humanDrop(BaseCode humancode) {
 			human->setHandLive(nullptr);
 		}
 		if (obj == nullptr)
-			return GameLive::DELEGATE_ROLLBACK;
+			return GameLive::TIMEFUNC_ROLLBACK;
 
 		BlockPos pos2 = dropPosition(humanlive);
 		LiveObjPtr objlive = api_addObject(obj, pos2, true, false, 0);
 		if (objlive == nullptr)
-			return GameLive::DELEGATE_ROLLBACK;
+			return GameLive::TIMEFUNC_ROLLBACK;
 
 		api_removeObject(objlive);
 		dropAnimation(humancode, objlive, pos2);
@@ -2302,12 +2458,37 @@ GameLive::ActionResult GameLive::api_humanDrop(BaseCode humancode) {
 	bool timepass = api_delegateActionTimeCompare(humanlive, BASE.DROP_STUFF_TIME, sche, tempres, "drop1");
 
 	if (timepass)
-		if (tempres == DELEGATE_ROLLBACK)
+		if (tempres == TIMEFUNC_ROLLBACK)
 			return ActionResult::cannotDo;
 		else
 			return ActionResult::done;
 	else
 		return ActionResult::timeBlocked;
+}
+
+GameLive::ActionResult GameLive::api_humanPutIntoPack(BaseCode humancode) {
+	LiveObjPtr live = api_humanGet(humancode);
+	if (live == nullptr)
+		return ActionResult::cannotDo;
+	int out_;
+	TimeFunc sch = [this, humancode]() {
+		auto humanp = api_getHuman(humancode);
+		if (humanp == nullptr)
+			return TIMEFUNC_ROLLBACK;
+		if (humanp->putIntoPack() == nullptr)
+			return TIMEFUNC_ROLLBACK;
+		else {
+			if (humanp->getHandLive() != nullptr)
+				LIVE.api_removeObject(humanp->getHandLive());
+			return 0;
+		}
+	};
+	if (api_delegateActionTimeCompare(live, 0.5, sch, out_, "putPack") == false)
+		return ActionResult::timeBlocked;
+	else if (out_ == TIMEFUNC_ROLLBACK)
+		return ActionResult::cannotDo;
+	else
+		return ActionResult::done;
 }
 
 GameLive::ActionResult GameLive::api_kidPick(LiveObjPtr stuff) {
@@ -2364,6 +2545,39 @@ void GameLive::api_toolLose(BaseCode humanCode) {
 			tool->toolPaint(tempui->id());
 		}
 	}
+}
+
+GameStoryLoader* GameLive::api_startStory(BaseCode storyCode) {
+	GameStory* sto = BASE.getStory(storyCode);
+	if (sto == nullptr)
+		return nullptr;
+	return api_startStory(*sto);
+}
+
+GameStoryLoader* GameLive::api_startStory(const GameStory& content) {
+	GameStoryLoader* loader = new GameStoryLoader(content);
+	if (loader == nullptr)
+		return nullptr;
+	this->_story.push_back(loader);
+	loader->next();
+	return loader;
+}
+
+bool GameLive::api_stopStory(GameStoryLoader* loader) {
+	if (loader != nullptr) {
+		loader->stop();
+		for (auto lt = _story.begin(); lt != _story.end();) {
+			if (*lt == loader) {
+				lt = _story.erase(lt);
+				delete loader;
+				return true;
+			}
+			else
+				lt++;
+		}
+		return false;
+	}
+	return false;
 }
 
 void GameLive::api_delayTime(const CocoFunc& func, float delaySec, const string& key,void* refer, int repeat, int interval) {
@@ -2465,7 +2679,7 @@ bool GameLive::api_delegateTimeCompare(float& lockvalue, const float& timeSec, c
 		lockvalue = now + timeSec;
 		cocos2d::log("[Trying] %s @ %f : + %f -> %f", logname.c_str(), now, timeSec, lockvalue);
 		out_return = func();
-		if (out_return == DELEGATE_ROLLBACK) {
+		if (out_return == TIMEFUNC_ROLLBACK) {
 			lockvalue = now;
 			cocos2d::log("[Rolling Back] -> %f", lockvalue);
 		}
@@ -2476,11 +2690,17 @@ bool GameLive::api_delegateTimeCompare(float& lockvalue, const float& timeSec, c
 }
 
 bool GameLive::api_delegateActionTimeCompare(LiveObjPtr& obj, const float& timeSec, const TimeFunc& func, int& out_return, const string& logname) {
-	return api_delegateTimeCompare(obj->_lockUntil, timeSec, func, out_return, logname);
+	if (obj != nullptr)
+		return api_delegateTimeCompare(obj->_lockUntil, timeSec, func, out_return, logname);
+	else
+		return false;
 }
 
 bool GameLive::api_delegateAnimeTimeCompare(LiveObjPtr& obj, const float& timeSec, const TimeFunc& func, int& out_return, const string& logName) {
-	return api_delegateTimeCompare(obj->_animeUntil, timeSec, func, out_return, logName);
+	if (obj != nullptr)
+		return api_delegateTimeCompare(obj->_animeUntil, timeSec, func, out_return, logName);
+	else
+		return false;
 }
 
 LiveObjPtr GameObjectJudge::getHumanPtr()  {

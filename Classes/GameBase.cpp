@@ -1,7 +1,9 @@
 #include "GamePrincipal.h"
 #include "GameBase.h"
 #include "GameLive.h"
+#include "GamePaint.h"
 #include "GameUI.h"
+#include "GameNPC.h"
 #include <fstream>
 #include <iostream>
 
@@ -10,8 +12,8 @@ const BlockPos		BlockPos::zero = BlockPos(0, 0);
 const GameObject	GameObject::origin;
 
 const float			GameBase::KID_MOVE_SPEED_IN_BIG_BLOCKS = 6.0f;
-const BlockType		GameBase::KID_STEP = 1;
-const float			GameBase::KID_RUN_COMPARED_TO_WALK = 2.5f;
+const BlockType		GameBase::KID_STEP = 2;
+const float			GameBase::KID_RUN_COMPARED_TO_WALK = 2.0f;
 const float			GameBase::USE_TOOL_TIME = 0.3f;
 const float			GameBase::SWITCH_TOOL_TIME = 0.2f;
 const float			GameBase::PICK_STUFF_TIME = 0.4f;
@@ -25,23 +27,42 @@ const string		GameBase::EMPTY_STRING = "";
 const int			GameBase::DETECT_SPLIT = 2;
 const GameCommand	GameBase::DEFAULT_COMMAND = GameCommand::emptyCmd;
 
+
+const string talk1_name = "Lei Mu";
+const string talk1_csb = "";
+const string talk1_text = "地方刚回家";
+const string talk2_name = "Lei Mu";
+const string talk2_csb = "";
+const string talk2_text = "Zai Diu Ni Yi Ge Lei Mu";
+
+const string choose1_des = "FUCK THE FUCKING PROJECT!!!!!!!!";
+const string choose1_choice[] = {"1", "2", "3", "4"};
+const int choose1_count = 4;
+
 void GameBase::init() {
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Tools");
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Humans");
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Plants");
 	cocos2d::FileUtils::getInstance()->addSearchPath("res/Stuff");
+	cocos2d::FileUtils::getInstance()->addSearchPath("res/Ground");
+	cocos2d::FileUtils::getInstance()->addSearchPath("res/Background");
+	cocos2d::FileUtils::getInstance()->addSearchPath("res/UI");
+	cocos2d::FileUtils::getInstance()->addSearchPath("fonts");
 
     // Translator Create
     GameTranslator::create<BasicMenuTranslator>(basicMenuTranslator, &transData);
 	GameTranslator::create<BasicMoveTranslator>(basicMoveTranslator, &transData);
 	GameTranslator::create<BasicObjectTranslator>(basicObjectTranslator, &transData);
 	GameTranslator::create<ToolTranslator>(toolTranslator, &transData);
+	GameTranslator::create<TalkTranslator>(talkTranslator, &transData);
+	GameTranslator::create<HandTranslator>(handTranslator, &transData);
 
     // Linker Create
 	GameLinker::create<SoilLinker>(soilLinkerCode, &linkerData);
 	GameLinker::create<BedLinker>(bedLinkerCode, &linkerData);
 	GameLinker::create<DefaultLinker>(defaultLinkerCode, &linkerData);
 	GameLinker::create<PotatoLinker>(potatoLinkerCode, &linkerData);
+	GameLinker::create<SeedSellerLinker>(seedSellerLinkerCode, &linkerData);
 
     // Object Create
     GameObject::create(GameObject::ground, farmPicCode, "farmBackground", "", BlockPos(PxPos(960, 640)), WalkType::allWalk, &stuffData, "FarmBackground.csb")
@@ -54,16 +75,18 @@ void GameBase::init() {
 	GameObject::create(GameObject::ground, soilWateredCode, "soilWatered", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "SoilWatered.csb", soilComb);
 	soilComb->setChildrenLinker(BASE.getLinker(soilLinkerCode));
 
+	// bed
 	ObjPtr bedComb = GameObject::create(GameObject::combStuff, bedCode, "bed", "", BigBlockPos(2, 4), WalkType::allWalk, &stuffData);
 	bedComb->setPickable(false)->setDropable(false);
-	GameObject::create(GameObject::furniture, bedDownCode, "bedDown", "", BigBlockPos(2, 4), WalkType::noneWalk, &stuffData, "BedDown.csb", bedComb)
-		->setCenter(BlockPos(BIG_TO_SMALL / 2, BIG_TO_SMALL * 2 - 1));
+	GameObject::create(GameObject::ground, bedDownCode, "bedDown", "", BigBlockPos(2, 4), WalkType::noneWalk, &stuffData, "BedDown.csb", bedComb)
+		->setCenter(BlockPos(BIG_TO_SMALL / 2, BIG_TO_SMALL * 2 - 2));
 	bedComb->childrenPos().push_back(BlockPos::zero);
-	GameObject::create(GameObject::ground, bedUpCode, "bedUp", "", BigBlockPos(2, 4), WalkType::noneWalk, &stuffData, "BedUp.csb", bedComb)
-		->setCenter(BlockPos(BIG_TO_SMALL / 2, BIG_TO_SMALL * 2 - 1));
+	GameObject::create(GameObject::furniture, bedUpCode, "bedUp", "", BigBlockPos(2, 4), WalkType::noneWalk, &stuffData, "BedUp.csb", bedComb)
+		->setCenter(BlockPos(BIG_TO_SMALL / 2, BIG_TO_SMALL * 2 - 2));
 	bedComb->childrenPos().push_back(BlockPos::zero);
 	bedComb->setChildrenLinker(BASE.getLinker(bedLinkerCode));
-
+	
+	// tools
 	GameObject::create(GameObject::BigType::stuff, toolHoe, "Tool Hoe", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Hoe.csb")
 		->setPickable(false)->setDropable(false);
 	GameObject::create(GameObject::BigType::stuff, toolWaterCan, "Tool WaterCan", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WaterCan.csb")
@@ -71,6 +94,7 @@ void GameBase::init() {
 	GameObject::create(GameObject::BigType::stuff, toolPotatoSeed, "Tool PotatoSeed", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "PotatoSeed.csb")
 		->setPickable(false)->setDropable(false)->setQuality(1);
 
+	// plant stuff
 	ObjPtr potatoComb = GameObject::create(GameObject::combStatue, stuffPotatoStart, "", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData);
 	potatoComb->setPickable(false)->setDropable(false);
 	GameObject::create(GameObject::BigType::seed, stuffPotatoWithered, "Withered Potato", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "WitherPotato.csb", potatoComb);
@@ -83,8 +107,10 @@ void GameBase::init() {
 	GameObject::create(GameObject::BigType::seed, houseCode, "House", "", BlockPos(PxPos(320, 290)), WalkType::noneWalk, &stuffData, "House.csb")
 		->setPickable(false)->setDropable(false)->setAlphaTXT("houseCanWalk.png.txt");
 	GameObject::create(GameObject::BigType::stuff, potatoCode, "Potato", "", BigBlockPos(1, 1), WalkType::allWalk, &stuffData, "Potato.csb");
-	
-	// 
+
+
+
+	// human stuff
 	string kidfacing[] = { "KidFace.csb",
 		"KidFace.csb",
 		"KidFace.csb",
@@ -96,43 +122,63 @@ void GameBase::init() {
 		"KidBack.csb",
 		"KidBack.csb"
 	};
-	GameObject::create(GameObject::BigType::kid, kidNormalCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "KidFace.csb")
-		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2))->setMixedSize((BlockPos)BigBlockPos(1, 2) + BlockPos(0, 1))->setFacingPicture(kidfacing);
+	GameObject::create(GameObject::BigType::kid, kidNormalStuffCode, "kid", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "KidFace.csb")
+		->setPickable(false)->setDropable(false)->setCenter(BlockPos(2, 2))->setMixedSize((BlockPos)BigBlockPos(1, 2) + BlockPos(0, 0))->setFacingPicture(kidfacing);
+
+	GameObject::create(GameObject::BigType::npc, seedSellerStuffCode, "seed seller", "", BigBlockPos(1, 1), WalkType::noneWalk, &stuffData, "NPC1.csb")
+		->setPickable(false)->setDropable(false)->setMixedSize((BlockPos)BigBlockPos(1, 2) - BlockPos(0, 1))->setLinker(getLinker(seedSellerLinkerCode));
 
     // Scene Create
-	ObjPtr farmsc = GameObject::create(GameObject::BigType::background, farmSceneCode, "farmScene", "", BlockPos(200, 200), WalkType::allWalk, &sceneData, "Grass.csb", nullptr, BlockPos::zero, BlockPos::zero);
+	ObjPtr farmsc = GameObject::create(GameObject::BigType::background, farmSceneCode, "farmScene", "", BlockPos(415, 415), WalkType::allWalk, &sceneData, "FarmScene.csb", nullptr, BlockPos::zero, BlockPos::zero);
 	for (int i = 1; i < 11; i++)
 		for (int j = 1; j < 11; j++) {
 			farmsc->children().push_back(getStuff(soilOriginCode));
-			farmsc->childrenPos().push_back(BigBlockPos(i, j));
+			farmsc->childrenPos().push_back(BlockPos(146, 234) + BigBlockPos(i, j));
 		}
+	farmsc->setAlphaTXT("BigBackgroundWalk.txt");
 	farmsc->children().push_back(getStuff(houseCode));
-	farmsc->childrenPos().push_back(BigBlockPos(14, 4));
+	farmsc->childrenPos().push_back(BlockPos(PxPos(2220, 2442)));
 
 	ObjPtr housesc = GameObject::create(GameObject::BigType::background, houseSceneCode, "House Inside Scene", "", BlockPos(90, 60), WalkType::allWalk, &sceneData, "HouseInside.csb", nullptr, BlockPos::zero, BlockPos::zero);
 	housesc->setAlphaTXT("houseInsideCanWalk.png.txt");
 	housesc->children().push_back(getStuff(bedCode));
 	housesc->childrenPos().push_back(BigBlockPos(20, 9));
+	housesc->children().push_back(getStuff(seedSellerStuffCode));
+	housesc->childrenPos().push_back(BigBlockPos(10, 4));
 
 	// Jump Create
 	getStuff(houseCode)->setJumpTXT("houseCanWalk.png.txt", houseSceneCode, BlockPos(PxPos(450, 20)));
-	getScene(houseSceneCode)->setJumpTXT("houseInsideCanWalk.png.txt", farmSceneCode, BigBlockPos(17, 5));
+	getScene(houseSceneCode)->setJumpTXT("houseInsideCanWalk.png.txt", farmSceneCode, BlockPos(PxPos(2290, 2342)));
 
 	// Plant Create
-	GamePlant::create(PlantCode::plantPotato, "", potatoComb, vector<int>{0, 0, 1, 3, 5}, vector<SeasonType> {haru}, &plantData);
+	GamePlant::create(PlantCode::plantPotato, "", potatoComb, vector<int>{0, 0, 1, 1, 1}, vector<SeasonType> {haru}, &plantData);
 
 
 	// Human Create
 	GameHuman::create(kidHumanCode, "kidSelf", 100, &humanData);
+	GameHuman::create(seedSellerHumanCode, "Seed Seller", 100, &humanData);
 
     // UI Create
     GameUI::create<StartPageUI>(startPageCode, "startPage", basicMenuTranslator,  &UIData);
 	GameUI::create<KidMoveUI>(kidMoveUICode, "kidMoveUI", basicMoveTranslator, &UIData);
 	GameUI::create<ToolUI>(toolUICode, "toolUI", toolTranslator, &UIData);
+	GameUI::create<TalkUI>(talkUICode, "Talk UI", talkTranslator, &UIData);
+	GameUI::create<HandUI>(handUICode, "HandUI", handTranslator, &UIData);
+	GameUI::create<ChooseUI>(chooseUICode, "Choose UI", basicMenuTranslator, &UIData);
 
 	// Event Create
 	GameEvent::create<StartGameEvent>(startGameEventCode, &eventData);
 	GameEvent::create<DayPassEvent>(dayPassEventCode, &eventData);
+
+	// Story Create
+	GameStory* story1 = GameStory::create(seedSellerStoryCode, &storyData);
+	GameTalk* talk1 = new GameTalk(talk1_name, talk1_csb, talk1_text);
+	const GameStory** effect1 = new const GameStory*[] { story1, nullptr, nullptr, nullptr};
+	GameChoose* choose1 = new GameChoose(talk1_name, choose1_des, choose1_choice, choose1_count, effect1);
+	GameTalk* talk2 = new GameTalk(talk2_name, talk2_csb, talk2_text);
+	story1->add(talk1);
+	story1->add(choose1);
+	story1->add(talk2);
 
 	// internal
 	setDefaultLinker();
@@ -598,6 +644,13 @@ HumanPtr GameBase::getHuman(BaseCode code) {
 		return nullptr;
 }
 
+GameStory* GameBase::getStory(BaseCode code) {
+	if (code >= 0 && code < (int)storyData.size())
+		return storyData[code];
+	else
+		return nullptr;
+}
+
 void GameBase::setDefaultLinker() {
 	auto linker = BASE.getLinker(defaultLinkerCode);
 	for (auto &obj : stuffData) {
@@ -671,3 +724,29 @@ PlantCode GameBase::stuffToPlant(BaseCode plantStuff) {
 	else
 		return plantStart;
 }
+
+void GameStoryElement::stop(GameStoryLoader& loader) {
+	if (loader.getActiveNode() != nullptr) {
+		LIVE.api_UIStop(loader.getActiveNode());
+	}
+}
+
+LiveCode GameTalk::action(GameStoryLoader& loader) {
+	std::shared_ptr<TalkUI> uip = std::dynamic_pointer_cast<TalkUI>(BASE.getUI(talkUICode));
+	uip->parentLoader = &loader;
+	uip->talkContent = this;
+	return LIVE.api_UIStart(uip);
+}
+
+LiveCode GameStoryEvent::action(GameStoryLoader& loader) {
+	LIVE.api_eventStart(eventCode, nullptr); //这就是一个坑
+	return nullptr;
+}
+
+LiveCode GameChoose::action(GameStoryLoader& loader) {
+	std::shared_ptr<ChooseUI> uip = std::dynamic_pointer_cast<ChooseUI>(BASE.getUI(chooseUICode));
+	uip->content = this;
+	uip->parentLoader = &loader;
+	return LIVE.api_UIStart(uip);
+}
+

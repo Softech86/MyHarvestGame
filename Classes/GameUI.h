@@ -50,7 +50,7 @@ public:
     virtual LiveCode start();
     virtual string save();
 	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge);
-    virtual void stop();
+	virtual void stop(LiveCode node);
 
     UIType& type() {
         return this->_type;
@@ -87,6 +87,18 @@ public:
 	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
 };
 
+class HandUI : public GameUI {
+public:
+	SHCP_OVERRIDE(GameUI, HandUI);
+	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
+};
+
+class MenuUI : public GameUI {
+public:
+	SHCP_OVERRIDE(GameUI, MenuUI);
+	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
+};
+
 class KidMoveUI : public GameUI {
 public:
 	SHCP_OVERRIDE(GameUI, KidMoveUI);
@@ -96,7 +108,24 @@ public:
 
 class TalkUI : public GameUI {
 public:
+	GameStoryLoader* parentLoader = nullptr;
+	const GameTalk* talkContent = nullptr;
+
+	TalkUI() {}
+	TalkUI(GameStoryLoader* loader, const GameTalk* content) : parentLoader(loader), talkContent(content) {}
 	SHCP_OVERRIDE(GameUI, TalkUI);
+	virtual LiveCode start() override;
+	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
+};
+
+class ChooseUI : public GameUI {
+public:
+	GameStoryLoader* parentLoader = nullptr;
+	const GameChoose* content = nullptr;
+
+	ChooseUI() {}
+	ChooseUI(GameStoryLoader* loader, const GameChoose* content) : parentLoader(loader), content(content) {}
+	SHCP_OVERRIDE(GameUI, ChooseUI);
 	virtual LiveCode start() override;
 	virtual JudgeReturn action(LiveCode node, float* keyarray, GameObjectJudge& judge) override;
 };
@@ -124,6 +153,19 @@ public:
 	SHCP_OVERRIDE(GameTranslator, ToolTranslator);
 	virtual GameCommand translate(float* keyarray) override;
 };
+
+class TalkTranslator : public GameTranslator {
+public:
+	SHCP_OVERRIDE(GameTranslator, TalkTranslator);
+	virtual GameCommand translate(float*) override;
+};
+
+class HandTranslator : public GameTranslator {
+public:
+	SHCP_OVERRIDE(GameTranslator, HandTranslator);
+	virtual GameCommand translate(float*) override;
+};
+
 //
 //class HandTranslator : public GameTranslator {
 //public:

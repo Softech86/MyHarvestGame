@@ -20,6 +20,8 @@
 #define LIVE GamePrincipal::getLive()
 
 const float KEY_CYCLE_SEC = 0.5;
+const double WUCHA = 0.01;
+const float WUCHAF = 0.01f;
 
 using std::vector;
 using std::string;
@@ -89,6 +91,7 @@ enum GameCommand {
 
     pickNLook,
     drop,
+	putIntoPack,
     useTool,
 	switchTool,
     eat,
@@ -107,7 +110,8 @@ enum GameCommand {
 
 enum StuffCode {
 	farmPicCode,
-	kidNormalCode,
+	kidNormalStuffCode,
+	seedSellerStuffCode,
 
 	toolStart,
 	toolHoe,
@@ -152,7 +156,7 @@ enum AnimalCode {
 enum HumanCode {
 	humanStart,
 	kidHumanCode,
-	seedSellerCode,
+	seedSellerHumanCode,
 	humanEnd,
 };
 
@@ -168,12 +172,15 @@ enum TransCode {
 	basicMoveTranslator,
 	basicObjectTranslator,
 	toolTranslator,
+	talkTranslator,
+	handTranslator,
 };
 
 enum LinkerCode {
 	soilLinkerCode,
 	bedLinkerCode,
 	potatoLinkerCode,
+	seedSellerLinkerCode,
 	defaultLinkerCode,
 };
 
@@ -181,11 +188,18 @@ enum UICode {
     startPageCode,
 	kidMoveUICode,
 	toolUICode,
+	talkUICode,
+	chooseUICode,
+	handUICode,
 };
 
 enum EventCode {
 	startGameEventCode,
 	dayPassEventCode,
+};
+
+enum StoryCode {
+	seedSellerStoryCode,
 };
 
 typedef int BlockType;
@@ -503,11 +517,15 @@ class GameTranslator;
 class GamePlant;
 class GameAnimal;
 class GameHuman;
+class GameStory;
+class GameStoryElement;
 
 class GameLiveObject;
 class GameLiveScene;
 class GameLiveUI;
 class GameObjectJudge;
+class GameTime;
+class GameStoryLoader;
 
 typedef std::shared_ptr<GameObject> ObjPtr;
 typedef std::weak_ptr<GameObject> ObjWeak;
@@ -522,7 +540,7 @@ typedef std::shared_ptr<GameLiveObject> LiveObjPtr;
 typedef std::weak_ptr<GameLiveObject> LiveObjWeak;
 typedef std::shared_ptr<GameLiveUI> LiveUIPtr;
 
-typedef std::vector<LiveObjPtr> LiveDot;
+typedef std::vector<LiveObjWeak> LiveDot;
 
 struct LinkerReturn {
     EventPtr eve = nullptr;

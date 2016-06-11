@@ -159,6 +159,24 @@ public:
     }
 };
 
+class GameTime {
+public:
+	int year = 1;
+	int season = SeasonType::haru;
+	int date = 1;
+	int hour = 6;
+	int minute = 0;
+
+	GameTime() {}
+
+	void timeAdd(int minutes = 1);
+	void hourAdd(int hours = 1);
+	void dayAdd(int days = 1);
+	void seasonAdd(int season = 1);
+
+};
+
+
 class GameLiveScene {
 friend class GameLive;
 public:
@@ -187,6 +205,7 @@ private:
 	LiveObjPtr liveScene = nullptr;
     map<LiveCode, LiveObjPtr> dict;
     vector<LiveObjPtr> nodeCache;
+	GameTime setTime;
 
 	float _animeUntil = 0;
 
@@ -202,6 +221,8 @@ private:
 	//GameCommand commandCache = GameBase::DEFAULT_COMMAND;
 
 	int detectSplit = GameBase::DETECT_SPLIT;
+
+	void blockMapClear();
 
 	static int insertPositionCompare(LiveObjPtr lhs, LiveObjPtr rhs);
 	static LiveDot::iterator findInsertPosition(LiveDot& ld, LiveObjPtr obj);
@@ -287,7 +308,10 @@ public:
 	}
 
 	BaseCode getCode() {
-		return this->scene->code();
+		if (this != nullptr && this->scene != nullptr)
+			return this->scene->code();
+		else
+			return -1;
 	}
 
 	int stuffFind(BaseCode stuff, const BlockPos& position);
@@ -316,9 +340,12 @@ public:
     // there are some root nodes in every Live Scene, this method should create it
     void init(const BlockPos& Mazesize);
     void setScene(BaseCode scenecode);
+	void resetScene();
 
+	LiveObjPtr getStuff(const BlockPos& position, int index);
     // add a stuff to the scene
     LiveObjPtr add(ObjPtr ptr, const BlockPos& margin, bool copy = true, int z = 0);
+	LiveObjPtr findReplace(BaseCode oldobject, ObjPtr newobject, const BlockPos& mp, bool copy = true, int z = 0, bool removeRecursive = true);
     // add a stuff to the scene, this LiveObject should not be painted at the moment
     void add(LiveObjPtr j);
     void remove(LiveObjPtr ptr, bool recursive = true);
@@ -384,32 +411,9 @@ public:
     enum detectMoveReturn {
         canMove, cannotMove, breakedMove
     };
-	// TODO 关于检测移动这里还有一个坑要填啊
-    detectMoveReturn detectMoveOneObject(LiveObjPtr obj, const BlockPos& vec, MoveType move, float timeSec);
-    BlockPos detectDistanceCouldMove(LiveObjPtr obj, const BlockPos& vec, Walkable& out_walk, LiveObjPtr& out_jumpObj);
 
-    ~GameLiveScene() {
-        if (blockMap != nullptr)
-            delete[] blockMap;
-    }
+	~GameLiveScene();
 };
-
-class GameTime {
-public:
-	int year = 1;
-	int season = SeasonType::haru;
-	int date = 1;
-	int hour = 6;
-	int minute = 0;
-
-	GameTime() {}
-
-	void timeAdd(int minutes = 10);
-	void hourAdd(int hours = 1);
-	void dayAdd(int days = 1);
-	void seasonAdd(int season = 1);
-};
-
 class GameLivePlant {
 	BaseCode _plant = -1;
 	BaseCode _plantScene = -1;
@@ -500,6 +504,7 @@ public:
 		else
 			return false;
 	}
+	void clearHand() { this->_handObject = nullptr; }
 	ObjPtr dropHand() {
 		if (this->_handObject != nullptr && this->_handObject->isDropable() && _dropOn) {
 			int cnt = 0;
@@ -542,7 +547,7 @@ public:
 	void setPickSwitch(bool onoff) { this->_pickOn = onoff; }
 
 	ObjPtr* hasStuffInPack(ObjPtr obj);
-	bool putIntoPack();
+	ObjPtr putIntoPack();
 
 	int getToolCount() { return this->_toolCount; }
 	int getEnergy() { return this->_energy; }
@@ -694,10 +699,22 @@ public:
 	void GameLiveCreature::onDayPass();
 };
 
+class GameStoryLoader {
+	const GameStory& _content;
+	int _index = 0;
+	LiveCode _activeNode = nullptr;
+public:
+	GameStoryLoader(const GameStory& content) : _content(content) {}
+	LiveCode getActiveNode() { return this->_activeNode; }
+	LiveCode next();
+	void stop();
+	void end();
+};
+
 class GameLive {
 public:
 	enum ActionResult { timeBlocked, done, cannotDo };
-	static const int DELEGATE_ROLLBACK = -1;
+	static const int TIMEFUNC_ROLLBACK = -1;
 
     static const int LOOP_FREQ_MS = 20;
     static const int LOOP_DEVATION_MS = 5;
@@ -717,8 +734,11 @@ private:
 	LiveUIPtr _UIJudgeNow = nullptr;
 	LiveCode _codeDim = nullptr;
 	float _animeUntil = 0;
+	vector<GameStoryLoader*> _story;
+	vector<GameLiveScene*> _archiveScene;
 
 	vector<GameLiveScene*> _trash;
+	void trashClear();
 
 public:
 	bool noPressStillJudge = false;
@@ -763,8 +783,8 @@ public:
 	
 	BlockPos api_getSceneSize() { if (this->_scene) return this->_scene->windowSize; else return BlockPos::zero; }
     bool api_setSceneSize(const BlockPos& size);
-    void api_UIStart(BaseCode uicode);
-    void api_UIStart(UIPtr uiptr);
+    LiveCode api_UIStart(BaseCode uicode);
+    LiveCode api_UIStart(UIPtr uiptr);
 	void api_UIStop(LiveCode id);
 	void api_UIStop(BaseCode code);
 	LiveUIPtr api_getUI(BaseCode code);
@@ -820,14 +840,17 @@ public:
 	void api_allDim(bool black = true, float timeSec = 1);
 	void api_allDimFrom(bool black = true, float timeSec = 1);
 
+	bool api_sceneSwitch(BaseCode sceneCode);
     void api_sceneInit(BaseCode sceneCode);
     void api_sceneDisplay();
     // calculate the object on scene according to the time or something more is processed here
     void api_sceneCalculate();
     void api_sceneICD(BaseCode sceneCode, const BlockPos& windowSize);
+	void api_sceneSCD(BaseCode sceneCode, const BlockPos& windowSize);
+	void api_sceneDCD(BaseCode sceneCode, const BlockPos& windowSize);
 	void api_sceneClose();
 	void api_sceneChange(BaseCode sceneCode, const BlockPos& windowSize, bool kidSet, const BlockPos& kidposnew);
-	void api_trashClearWillTakeALongTime() { for (auto sc : _trash) delete sc; _trash.clear(); }
+	void api_trashClear();
 
 	void api_dayPass();
 
@@ -849,6 +872,7 @@ public:
 	void api_humanWalk(BaseCode humancode, const BlockPos& vec, bool faceChange = true);
 	void api_humanRun(BaseCode humancode, const BlockPos& vec, bool faceChange = true);
 	void api_humanMoveStep(BaseCode humancode, BlockPos::Direction dir, LockType lock = doNothing, bool faceChange = true, bool walk = true);
+	void api_humanRemove(BaseCode humancode, bool recursive = true);
 
 	LiveObjPtr api_kidSet(BaseCode stuffCode, const BlockPos& pos, bool focus);
 	LiveObjPtr api_kidSet(ObjPtr ptr, const BlockPos& pos, bool focus, bool copy = true);
@@ -871,6 +895,7 @@ private:
 public:
 	ActionResult api_humanPick(BaseCode humancode, LiveObjPtr stuff);
 	ActionResult api_humanDrop(BaseCode humancode);
+	ActionResult api_humanPutIntoPack(BaseCode humancode);
 	ActionResult api_kidPick(LiveObjPtr stuff);
     // void api_kidJump(BaseCode sceneCode, BlockPos blocksize, BlockPos kidpos);
 	LiveObjPtr api_humanAddObject(BaseCode humancode, ObjPtr obj, const BlockPos& marginRelative, bool copy = true, int z = 0);
@@ -887,6 +912,10 @@ public:
 
 	GameTime api_getGameTime() { return this->_time; }
 	int api_getSeason() { return this->_time.season; }
+
+	GameStoryLoader* api_startStory(BaseCode storyCode);
+	GameStoryLoader* api_startStory(const GameStory& content);
+	bool api_stopStory(GameStoryLoader* loader);
 
 	// refer上面写着个函数的主要关心的物体，取消的时候就会调用它，如果不知道就写&LIVE
 	static void api_delayTime(const CocoFunc& func, float delaySec, const string& key, void* refer, int repeat = 0, int interval = 0);
@@ -923,6 +952,8 @@ public:
     ~GameLive() {
 		for (auto &sce : _trash)
 			delete sce;
+		for (auto &sto : _story)
+			delete sto;
         if (_scene != nullptr)
             delete _scene;
         if (_keys != nullptr)

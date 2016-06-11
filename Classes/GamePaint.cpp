@@ -59,6 +59,14 @@ bool GamePaint::nodeDisplay(LiveCode needDisplayed) {
     return true;
 }
 
+void GamePaint::nodeRetain(LiveCode node) {
+	node->retain();
+}
+
+void GamePaint::nodeRelease(LiveCode node) {
+	node->autorelease();
+}
+
 void GamePaint::nodeRemove(LiveCode needRemoved) {
 	GamePaint::mainsc->removeChild(needRemoved);
 }
@@ -88,16 +96,18 @@ LiveCode GamePaint::objAddToObj(LiveCode parent, const string& picture, const Px
 
 LiveCode GamePaint::objMove(LiveCode object, const PxPos& newpos, MoveType type, float timeSec, float delaySec){
 	PxPos newpos2 = mix(newpos); 
-	if (delaySec == 0) {
-		if (timeSec == 0)
+	if (delaySec < WUCHAF) {
+		if (timeSec < WUCHAF)
 			object->setPosition(newpos.toVec2());
-		else
+		else {
+			//cocos2d::log("PAINT.MOVE ->[%f, %f], %f", newpos.x, newpos.y, timeSec);
 			object->runAction(cocos2d::MoveTo::create(timeSec, newpos.toVec2()));
+		}
 		return object;
 	}
 	else {
 		CocoFunc sch = [timeSec, object, newpos](float dt) {
-			if (timeSec == 0)
+			if (timeSec < WUCHAF)
 				object->setPosition(newpos.toVec2());
 			else
 				object->runAction(cocos2d::MoveTo::create(timeSec, newpos.toVec2()));
@@ -115,14 +125,14 @@ LiveCode GamePaint::objRotate(LiveCode object, float olddegree, float newdegree,
 LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, float timeSec, float delaySec) {
 	// BUG SEEMS
 	if (object && oldalpha != newalpha) {
-		if (timeSec == 0 && delaySec == 0)
+		if (timeSec < WUCHAF && delaySec < WUCHAF)
 			object->setOpacity(newalpha * 255);
 		else {
-			float *timePassed = new float;
+			double *timePassed = new double;
 			*timePassed = 0;
-			float *timeUse = new float;
+			double *timeUse = new double;
 			*timeUse = timeSec;
-			float *delta = new float;
+			double *delta = new double;
 			*delta = newalpha - oldalpha;
 			int repeat = timeSec / LIVE.api_getLoopFreq();
 			auto sch = [object, timePassed, timeUse, delta, oldalpha, newalpha](float dt) {
@@ -134,7 +144,7 @@ LiveCode GamePaint::objAlpha(LiveCode object, float oldalpha, float newalpha, fl
 					delete delta;
 				}
 				else {
-					float alpha = oldalpha + *delta / *timeUse * *timePassed;
+					double alpha = oldalpha + *delta / *timeUse * *timePassed;
 					object->setOpacity(alpha * 255);
 				}
 			};

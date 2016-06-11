@@ -23,6 +23,9 @@ public:
     bool nodeDisplay(LiveCode scene);
     void nodeRemove(LiveCode scene);
     void nodeRemoveAllChildren(LiveCode node);
+
+	void nodeRetain(LiveCode node);
+	void nodeRelease(LiveCode node);
     
     LiveCode objAddToObj(LiveCode parent, const string& picture, const PxPos& pos, float scale = 1, float alpha = 1);
     LiveCode objMove(LiveCode object, const PxPos& newpos, MoveType type, float timeSec, float delaySec = 0);

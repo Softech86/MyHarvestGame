@@ -93,6 +93,8 @@ void Hello::exitBtnOper(Ref*, TouchEventType type) {
 }
 
 void Hello::setHighlight(int selected) {
+	if (this == nullptr)
+		return;
 	unsetHighlight();
 	if (selected == 0)
 		enterBtn->setTitleColor(Color3B(255, 255, 255));
@@ -101,11 +103,15 @@ void Hello::setHighlight(int selected) {
 }
 
 void Hello::unsetHighlight() {
+	if (this == nullptr)
+		return;
 	enterBtn->setTitleColor(Color3B(0, 0, 0));
 	exitBtn->setTitleColor(Color3B(0, 0, 0));
 }
 
 void Hello::comeOn(LiveCode node, GameCommand cmd) {
+	if (node == nullptr)
+		return;
 	if (cmd == emptyCmd)
 		return;
 	if (cmd == confirm) {

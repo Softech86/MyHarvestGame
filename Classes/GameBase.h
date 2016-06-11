@@ -411,6 +411,100 @@ public:
 	}
 };
 
+class GameStoryElement {
+public:
+	SHCP_BASE(GameStoryElement);
+	virtual LiveCode action(GameStoryLoader&) { return nullptr; };
+	virtual void stop(GameStoryLoader& loader);
+};
+
+class GameTalk : public GameStoryElement {
+public:
+	const string& personName;
+	const string& personCsb;
+	const string& talkText;
+public:
+	GameTalk(const string& personName, const string& personCsb, const string& talkText)
+		: personName(personName), personCsb(personCsb), talkText(talkText) {}
+	SHCP_OVERRIDE(GameStoryElement, GameTalk);
+	virtual LiveCode action(GameStoryLoader&) override;
+};
+
+class GameStoryEvent : public GameStoryElement {
+public:
+	int eventCode = -1;
+public:
+	GameStoryEvent(int eventCode) : eventCode(eventCode) {}
+	SHCP_OVERRIDE(GameStoryElement, GameStoryEvent);
+	virtual LiveCode action(GameStoryLoader&) override;
+	virtual void stop(GameStoryLoader&) override {
+	}
+};
+
+class GameChoose : public GameStoryElement {
+public:
+	const string& personName;
+	const string& description;
+	int choiceCount = 0;
+	const string* choice = nullptr;
+	const GameStory** effects = nullptr;
+public:
+	GameChoose(const string& personName, const string& description, const string* choice, int choiceCount, const GameStory** effects)
+		: personName(personName), description(description), choiceCount(choiceCount), choice(choice), effects(effects) {}
+	SHCP_OVERRIDE(GameStoryElement, GameChoose);
+	virtual LiveCode action(GameStoryLoader&) override; 
+	const GameStory* getEffect(int select) const {
+		if (effects != nullptr)
+			if (select > -1 && select < choiceCount)
+				return effects[select];
+			else
+				return nullptr;
+		else
+			return nullptr;
+	}
+	~GameChoose() {
+		delete[] effects;
+	}
+};
+
+class GameStory : public GameStoryElement {
+	BaseCode code = -1;
+	vector<GameStoryElement*> content;
+public:
+	GameStory() {}
+	GameStory(BaseCode code) : code(code) {}
+	static GameStory* create(BaseCode code, vector<GameStory*>* container) {
+		GameStory* story = new GameStory(code);
+		T_push(container, story, code);
+		return story;
+	}
+
+	void add(GameStoryElement* ele) {
+		content.push_back(ele);
+	}
+	GameStoryElement* next(int &index) const {
+		if (index > -1 && index < (int)content.size())
+			return content[index++];
+		else
+			return nullptr;
+	}
+	GameStoryElement* now(int &index) const {
+		if (index > -1 && index < (int)content.size())
+			return content[index];
+		else if (index == (int)content.size())
+			return content[index - 1];
+		else
+			return nullptr;
+	}
+
+	SHCP_OVERRIDE(GameStoryElement, GameStory);
+	//virtual LiveCode action(GameStoryLoader&) override; 
+	~GameStory() {
+		for (auto ele : content)
+			delete ele;
+	}
+};
+
 class GameBase {
 private:
     std::vector<ObjPtr> stuffData;
@@ -421,6 +515,7 @@ private:
 	std::vector<EventPtr> eventData;
 	std::vector<PlantPtr> plantData;
 	std::vector<HumanPtr> humanData;
+	std::vector<GameStory*> storyData;
 public:
 	static const float KID_MOVE_SPEED_IN_BIG_BLOCKS;
 	static const BlockType KID_STEP;
@@ -452,8 +547,14 @@ public:
 	LinkerPtr getLinker(BaseCode code);
 	PlantPtr getPlant(BaseCode code);
 	HumanPtr getHuman(BaseCode code);
+	GameStory* getStory(BaseCode code);
 
 	void setDefaultLinker();
 
 	const string& getStuffCSB(BaseCode code);
+
+	~GameBase(){
+		for (auto sto : storyData)
+			delete sto;
+	}
 };

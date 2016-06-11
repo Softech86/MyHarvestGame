@@ -3,6 +3,8 @@
 #include "GameLive.h"
 #include "GamePrincipal.h"
 #include "HelloScene.h"
+#include "TalkNode.h"
+#include "SelectNode.h"
 #include "GamePaint.h"
 
 GameUI GameUI::origin;
@@ -27,7 +29,7 @@ string GameUI::save() {
     return "test";
 }
 
-void GameUI::stop() {
+void GameUI::stop(LiveCode node) {
 
 }
 
@@ -137,6 +139,27 @@ JudgeReturn ToolUI::action(LiveCode node, float* keyarray, GameObjectJudge& judg
 	return judgeNextObject;
 }
 
+JudgeReturn HandUI::action(LiveCode node, float* keyarray, GameObjectJudge& judge) {
+	if (LIVE.api_hasScene()) {
+		GameCommand gcmd = this->control()->translate(keyarray);
+		if (gcmd == putIntoPack) {
+			LiveObjPtr kid = LIVE.api_kidGet();
+			if (kid == nullptr)
+				return judgeNextObject;
+			if (LIVE.api_humanPutIntoPack(kidHumanCode) != GameLive::ActionResult::cannotDo)
+				return judgeEnd;
+			else
+				return judgeNextObject;
+		}
+	}
+	return judgeNextObject;
+}
+
+JudgeReturn MenuUI::action(LiveCode node, float* keyarray, GameObjectJudge& judge) {
+	return judgeNextObject;
+	//TODO
+}
+
 // 像这种Cycle和Just都是有种算时间差的感觉的，就是你只要一组按钮不是同一个时间差的话，是不会同时判定的吧
 GameCommand BasicMenuTranslator::translate(float* keyarray) {
 	if (LIVE.keyCyclePushed(keyarray, GameKeyPress::buttonUp, KEY_CYCLE_SEC, true))
@@ -232,14 +255,25 @@ GameCommand ToolTranslator::translate(float* keyarray) {
 	return GameCommand::emptyCmd;
 }
 
-//
-//GameCommand HandTranslator::translate(float* keyarray) {
-//	if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonA, true))
-//		return GameCommand::drop;
-//
-//	//TODO
-//	return GameCommand::emptyCmd;
-//}
+GameCommand TalkTranslator::translate(float* keyarray) {
+	if (LIVE.keyCyclePushed(keyarray, GameKeyPress::buttonA, 0.5f, true))
+		return GameCommand::talkNext;
+	if (LIVE.keyCyclePushed(keyarray, GameKeyPress::buttonDown, 0.5f, true))
+		return GameCommand::talkNext;
+	if (LIVE.keyCyclePushed(keyarray, GameKeyPress::buttonUp, 0.5f, true))
+		return GameCommand::talkBacklog;
+	return GameCommand::emptyCmd;
+}
+
+
+GameCommand HandTranslator::translate(float* keyarray) {
+	if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonA, true))
+		return GameCommand::drop;
+	if (LIVE.keyJustPushed(keyarray, GameKeyPress::buttonB, true))
+		return GameCommand::putIntoPack;
+	//TODO
+	return GameCommand::emptyCmd;
+}
 
 LinkerReturn SoilLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 	LinkerReturn result;
@@ -284,15 +318,73 @@ LinkerReturn SoilLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 }
 
 LiveCode TalkUI::start(){
-	return PAINT.nodeNew();
-	//TODO
+	if (talkContent != nullptr && parentLoader != nullptr)
+		return TalkNode::create(talkContent->personName, talkContent->personCsb, talkContent->talkText);
+	else
+		return PAINT.nodeNew();
 }
 
 JudgeReturn TalkUI::action(LiveCode node, float* keyarray, GameObjectJudge& judge) {
-	return judgeNextLayer;
-	//TODO
+	auto gcmd = this->control()->translate(keyarray);
+	if (gcmd == talkNext) {
+		TimeFunc sch = [node, this]() {
+			auto* talk = dynamic_cast<TalkNode*>(node);
+			bool cando = talk->nextLine();
+			if (cando == false)
+				this->parentLoader->next();
+			return 0;
+		};
+		int temp;
+		LIVE.api_delegateActionTimeCompare(judge.getHumanPtr(), 0.3f, sch, temp, "Talk Window Close");
+	}
+	return judgeEnd;
 }
 
+LiveCode ChooseUI::start() {
+	if (content != nullptr && parentLoader != nullptr)
+		return SelectNode::create(content->personName, content->description, content->choice, content->choiceCount); //TODO
+	else
+		return PAINT.nodeNew();
+}
+
+JudgeReturn ChooseUI::action(LiveCode node, float* keyarray, GameObjectJudge& judge) {
+	auto gcmd = this->control()->translate(keyarray);
+	auto* talk = dynamic_cast<SelectNode*>(node);
+	int temp;
+	if (gcmd == selectDown) {
+		TimeFunc sch = [talk, this]() {
+			talk->selectDown();
+			return 0;
+		};
+		LIVE.api_delegateActionTimeCompare(judge.getHumanPtr(), 0.1f, sch, temp, "Select Down");
+	}
+	else if (gcmd == selectUp) {
+		TimeFunc sch = [talk, this]() {
+			talk->selectUp();
+			return 0;
+		};
+		LIVE.api_delegateActionTimeCompare(judge.getHumanPtr(), 0.1f, sch, temp, "Select Up");
+	}
+	else if (gcmd == confirm) {
+		TimeFunc sch = [talk, this]() {
+			int selected = talk->getSelect();
+			if (selected == -1)
+				return 0;
+			auto psto = this->content->getEffect(selected);
+			if (psto == nullptr)
+				this->parentLoader->next();
+			else {
+				LIVE.api_startStory(*psto);
+				this->parentLoader->end();
+			}
+			return 0;
+		};
+		LIVE.api_delegateActionTimeCompare(judge.getHumanPtr(), 0.3f, sch, temp, "Select Confirm");
+	}
+
+	// TODO
+	return judgeEnd;
+}
 
 LinkerReturn BedLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 	LinkerReturn result;
@@ -348,7 +440,7 @@ LinkerReturn DefaultLinker::link(GameCommand gcmd, GameObjectJudge& judge) {
 bool StartGameEvent::start(LiveObjPtr obj) {
 	LIVE.api_UIStop(startPageCode);
 	LIVE.api_sceneICD(farmSceneCode, BASE.SCENE_DISPLAY_SIZE);
-	LIVE.api_kidSet(kidNormalCode, BigBlockPos(3, 1), true);
+	LIVE.api_kidSet(kidNormalStuffCode, BlockPos(PxPos(2290, 2342)), true);
 	/*
 	LIVE.api_kidWalk(BigBlockPos(3, 18));
 	LIVE.api_kidWalk(BigBlockPos(12, -15));
@@ -381,6 +473,7 @@ bool StartGameEvent::start(LiveObjPtr obj) {
 
 	LIVE.api_UIStart(kidMoveUICode);
 	LIVE.api_UIStart(toolUICode);
+	LIVE.api_UIStart(handUICode);
 	LIVE.api_allDimFrom();
 	return true;
 }
